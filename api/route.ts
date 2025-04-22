@@ -15,42 +15,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const { start, end } = req.query;
-    const apiKey = process.env.VITE_OPENROUTE_API_KEY;
-
-    console.log('Environment:', {
-      NODE_ENV: process.env.NODE_ENV,
-      VERCEL_ENV: process.env.VERCEL_ENV,
-      API_KEY_PRESENT: !!apiKey
-    });
-
-    if (!apiKey) {
-      console.error('OpenRouteService API key is missing');
-      return res.status(500).json({ error: 'API key not configured' });
-    }
 
     if (!start || !end) {
       return res.status(400).json({ error: 'Missing start or end coordinates' });
     }
 
-    console.log('Calculating route with coordinates:', { start, end });
-
-    // Use the standard driving directions endpoint
-    const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}&start=${start}&end=${end}`;
-    console.log('OpenRouteService API URL:', url);
+    // Use OSRM's routing service
+    // Format: /route/v1/driving/{longitude},{latitude};{longitude},{latitude}
+    const url = `https://router.project-osrm.org/route/v1/driving/${start};${end}?overview=full&geometries=geojson`;
+    console.log('OSRM API URL:', url);
 
     const response = await fetch(url, {
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
+        'Accept': 'application/json'
       }
     });
 
     const responseText = await response.text();
-    console.log('OpenRouteService API Response Status:', response.status);
-    console.log('OpenRouteService API Response Body:', responseText);
+    console.log('OSRM API Response Status:', response.status);
+    console.log('OSRM API Response Body:', responseText);
 
     if (!response.ok) {
-      console.error('OpenRouteService API error:', responseText);
+      console.error('OSRM API error:', responseText);
       return res.status(response.status).json({ 
         error: 'Failed to calculate route',
         details: responseText
