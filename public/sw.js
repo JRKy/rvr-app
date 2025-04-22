@@ -2,30 +2,76 @@ const CACHE_NAME = 'rvr-app-cache-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/src/main.tsx',
-  '/src/App.tsx',
-  '/src/theme.ts',
-  '/src/types/index.ts',
-  '/src/components/Layout.tsx',
-  '/src/pages/PayloadCalculator.tsx',
-  '/src/pages/TripTracker.tsx',
+  '/assets/index.css',
+  '/assets/index.js',
+  '/vite.svg',
+  'https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap',
+  'https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmSU5fBBc4.woff2',
+  'https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.woff2',
+  'https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmEU9fBBc4.woff2',
+  'https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc4.woff2',
+  'https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmYUtfBBc4.woff2',
+  'https://fonts.gstatic.com/s/roboto/v30/KFOkCnqEu92Fr1MmgVxIIzI.woff2',
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(urlsToCache))
+      .then((cache) => {
+        return Promise.all(
+          urlsToCache.map((url) => {
+            return fetch(url)
+              .then((response) => {
+                if (!response.ok) {
+                  throw new Error(`Failed to cache ${url}: ${response.status}`);
+                }
+                return cache.put(url, response);
+              })
+              .catch((error) => {
+                console.error(`Failed to cache ${url}:`, error);
+                // Continue with other resources even if one fails
+                return Promise.resolve();
+              });
+          })
+        );
+      })
+      .catch((error) => {
+        console.error('Service Worker installation failed:', error);
+      })
   );
 });
 
 self.addEventListener('fetch', (event) => {
+  // Skip caching for API requests
+  if (event.request.url.includes('/api/') || 
+      event.request.url.includes('openrouteservice.org') ||
+      event.request.url.includes('api.eia.gov')) {
+    return fetch(event.request);
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
         if (response) {
           return response;
         }
-        return fetch(event.request);
+        return fetch(event.request)
+          .then((response) => {
+            // Don't cache if not a valid response
+            if (!response || response.status !== 200 || response.type !== 'basic') {
+              return response;
+            }
+
+            // Clone the response as it can only be used once
+            const responseToCache = response.clone();
+
+            caches.open(CACHE_NAME)
+              .then((cache) => {
+                cache.put(event.request, responseToCache);
+              });
+
+            return response;
+          });
       })
   );
 });
