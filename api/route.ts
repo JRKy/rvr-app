@@ -17,9 +17,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { start, end } = req.query;
     const apiKey = process.env.VITE_OPENROUTE_API_KEY;
 
+    console.log('Environment:', {
+      NODE_ENV: process.env.NODE_ENV,
+      VERCEL_ENV: process.env.VERCEL_ENV,
+      API_KEY_PRESENT: !!apiKey
+    });
+
     if (!apiKey) {
       console.error('OpenRouteService API key is missing');
-      return res.status(500).json({ error: 'API key not configured' });
+      return res.status(500).json({ 
+        error: 'API key not configured',
+        env: process.env
+      });
     }
 
     if (!start || !end) {
