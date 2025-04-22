@@ -132,8 +132,7 @@ const EIA_API_BASE_URL = 'https://api.eia.gov/v2';
 const EIA_API_KEY = import.meta.env.VITE_EIA_API_KEY;
 
 const OPENROUTE_API_URL = 'https://api.openrouteservice.org';
-
-const CORS_PROXY = 'https://corsproxy.io/?';
+const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
 const CORS_KEY = import.meta.env.VITE_CORS_KEY;
 
 interface RouteSegment {
@@ -618,7 +617,7 @@ const TripTracker: React.FC = () => {
           'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
           'Content-Type': 'application/json',
           'User-Agent': 'RVR-App/1.0',
-          'x-cors-api-key': CORS_KEY
+          'X-Requested-With': 'XMLHttpRequest'
         }
       });
 
