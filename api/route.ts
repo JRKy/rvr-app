@@ -28,23 +28,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('Calculating route with coordinates:', { start, end });
 
-    const response = await fetch(
-      `https://api.openrouteservice.org/directions/driving-hgv?api_key=${apiKey}&start=${start}&end=${end}`,
-      {
-        headers: {
-          'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
-          'Content-Type': 'application/json',
-        }
+    const url = `https://api.openrouteservice.org/directions/driving-hgv?api_key=${apiKey}&start=${start}&end=${end}`;
+    console.log('OpenRouteService API URL:', url);
+
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
+        'Content-Type': 'application/json',
       }
-    );
+    });
 
     const responseText = await response.text();
-    console.log('OpenRouteService API Response:', responseText);
+    console.log('OpenRouteService API Response Status:', response.status);
+    console.log('OpenRouteService API Response Headers:', response.headers);
+    console.log('OpenRouteService API Response Body:', responseText);
 
     if (!response.ok) {
-      console.error('OpenRouteService API error:', responseText);
+      console.error('OpenRouteService API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+        body: responseText
+      });
       return res.status(response.status).json({ 
         error: 'Failed to calculate route',
+        status: response.status,
+        statusText: response.statusText,
         details: responseText
       });
     }
@@ -57,14 +66,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error('Failed to parse API response:', parseError);
       return res.status(500).json({ 
         error: 'Failed to parse route data',
-        details: parseError instanceof Error ? parseError.message : 'Unknown parsing error'
+        details: parseError instanceof Error ? parseError.message : 'Unknown parsing error',
+        responseText: responseText
       });
     }
   } catch (error) {
     console.error('Route calculation error:', error);
     res.status(500).json({ 
       error: 'Failed to calculate route',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
     });
   }
 } 
