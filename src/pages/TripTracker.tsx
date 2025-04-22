@@ -939,6 +939,12 @@ const TripTracker: React.FC = () => {
             } else {
               setMarkers(prev => ({ ...prev, destination: [lat, lon] }));
             }
+            // Trigger route calculation if both locations are set
+            if (type === 'origin' && formData.destination) {
+              calculateRouteDetails(newValue.label, formData.destination, formData.isRoundTrip);
+            } else if (type === 'destination' && formData.origin) {
+              calculateRouteDetails(formData.origin, newValue.label, formData.isRoundTrip);
+            }
           }
         }
       }}
