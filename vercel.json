@@ -19,6 +19,14 @@
       "dest": "/api/route.ts"
     },
     {
+      "src": "/assets/(.*)",
+      "dest": "/assets/$1"
+    },
+    {
+      "src": "/(.*\\.[a-zA-Z0-9]+)",
+      "dest": "/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
@@ -34,7 +42,7 @@
       ]
     },
     {
-      "source": "/(.*).js",
+      "source": "/(.*\\.[a-zA-Z0-9]+)",
       "headers": [
         {
           "key": "Cache-Control",
