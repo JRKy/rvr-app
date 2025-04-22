@@ -25,10 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!apiKey) {
       console.error('OpenRouteService API key is missing');
-      return res.status(500).json({ 
-        error: 'API key not configured',
-        env: process.env
-      });
+      return res.status(500).json({ error: 'API key not configured' });
     }
 
     if (!start || !end) {
@@ -37,32 +34,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('Calculating route with coordinates:', { start, end });
 
-    const url = `https://api.openrouteservice.org/directions/driving-hgv?api_key=${apiKey}&start=${start}&end=${end}`;
+    // Use the standard driving directions endpoint
+    const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}&start=${start}&end=${end}`;
     console.log('OpenRouteService API URL:', url);
 
     const response = await fetch(url, {
       headers: {
-        'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
-        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
       }
     });
 
     const responseText = await response.text();
     console.log('OpenRouteService API Response Status:', response.status);
-    console.log('OpenRouteService API Response Headers:', response.headers);
     console.log('OpenRouteService API Response Body:', responseText);
 
     if (!response.ok) {
-      console.error('OpenRouteService API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers,
-        body: responseText
-      });
+      console.error('OpenRouteService API error:', responseText);
       return res.status(response.status).json({ 
         error: 'Failed to calculate route',
-        status: response.status,
-        statusText: response.statusText,
         details: responseText
       });
     }
@@ -75,16 +65,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error('Failed to parse API response:', parseError);
       return res.status(500).json({ 
         error: 'Failed to parse route data',
-        details: parseError instanceof Error ? parseError.message : 'Unknown parsing error',
-        responseText: responseText
+        details: parseError instanceof Error ? parseError.message : 'Unknown parsing error'
       });
     }
   } catch (error) {
     console.error('Route calculation error:', error);
     res.status(500).json({ 
       error: 'Failed to calculate route',
-      details: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 } 
