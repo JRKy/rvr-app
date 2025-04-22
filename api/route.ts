@@ -38,18 +38,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     );
 
+    const responseText = await response.text();
+    console.log('OpenRouteService API Response:', responseText);
+
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('OpenRouteService API error:', errorText);
+      console.error('OpenRouteService API error:', responseText);
       return res.status(response.status).json({ 
         error: 'Failed to calculate route',
-        details: errorText
+        details: responseText
       });
     }
 
-    const data = await response.json();
-    console.log('Route calculation successful');
-    res.status(200).json(data);
+    try {
+      const data = JSON.parse(responseText);
+      console.log('Route calculation successful');
+      res.status(200).json(data);
+    } catch (parseError) {
+      console.error('Failed to parse API response:', parseError);
+      return res.status(500).json({ 
+        error: 'Failed to parse route data',
+        details: parseError instanceof Error ? parseError.message : 'Unknown parsing error'
+      });
+    }
   } catch (error) {
     console.error('Route calculation error:', error);
     res.status(500).json({ 
