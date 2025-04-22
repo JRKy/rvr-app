@@ -26,10 +26,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html",
-      "headers": {
-        "cache-control": "no-cache, no-store, must-revalidate"
-      }
+      "dest": "/index.html"
     }
   ],
   "headers": [
@@ -39,18 +36,8 @@
         {
           "key": "Content-Type",
           "value": "application/javascript"
-        },
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
         }
       ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
     }
   ]
 } 
