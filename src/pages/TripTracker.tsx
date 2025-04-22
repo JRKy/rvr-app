@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -41,6 +41,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, ZoomControl, Polyline }
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import '../styles/leaflet.css';
+import { createFilterOptions } from '@mui/material/Autocomplete';
 
 // Fix for Leaflet marker icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -82,17 +83,16 @@ type SortField = 'date' | 'mpg' | 'costPerMile' | 'miles';
 type SortOrder = 'asc' | 'desc';
 
 interface Location {
-  display_name: string;
-  lat: number;
-  lon: number;
-  place_id: number;
-  address: {
-    city: string;
-    state: string;
-    country: string;
-    postcode: string;
-    road: string;
-  };
+  label: string;
+  value: string;
+  coordinates: [number, number];
+  inputValue?: string;
+}
+
+interface FormErrors {
+  origin?: string;
+  destination?: string;
+  // Add other error fields as needed
 }
 
 interface TruckDetails {
@@ -364,7 +364,7 @@ const BASE_MPG = {
   }
 };
 
-const TripTracker = () => {
+const TripTracker: React.FC = () => {
   const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
   const [truckDetails, setTruckDetails] = useState<TruckDetails>({
@@ -404,6 +404,13 @@ const TripTracker = () => {
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [isLoadingFuelPrice, setIsLoadingFuelPrice] = useState(false);
   const [fuelPriceError, setFuelPriceError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<Location[]>([]);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [originCoordinates, setOriginCoordinates] = useState<[number, number] | null>(null);
+  const [destinationCoordinates, setDestinationCoordinates] = useState<[number, number] | null>(null);
+
+  // Add cache for recent searches
+  const searchCache = useRef<Map<string, Location[]>>(new Map());
 
   // Add test function inside component
   const testApiConnection = async () => {
@@ -496,25 +503,15 @@ const TripTracker = () => {
     });
   };
 
-  const handleInputChange = (field: keyof TripFormData, value: string) => {
-    const newFormData = { ...formData, [field]: value };
-    
-    // Calculate mileage and fuel costs when start or end odometer changes
-    if (field === 'startOdometer' || field === 'endOdometer') {
-      const startOdometer = Number(field === 'startOdometer' ? value : newFormData.startOdometer || '0');
-      const endOdometer = Number(field === 'endOdometer' ? value : newFormData.endOdometer || '0');
-      
-      if (!isNaN(startOdometer) && !isNaN(endOdometer) && endOdometer >= startOdometer) {
-        const miles = endOdometer - startOdometer;
-        const gallonsNeeded = miles / (parseFloat(truckDetails.averageMPG) || 0);
-        const fuelCost = gallonsNeeded * (parseFloat(truckDetails.currentFuelPrice) || 0);
-        
-        newFormData.fuelAmount = gallonsNeeded.toFixed(1);
-        newFormData.fuelCost = fuelCost.toFixed(2);
-      }
+  // Update the input change handler
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setFormData(prev => ({ ...prev, [e.target.name]: value }));
+    if (value.trim()) {
+      debouncedFetchSuggestions(value.trim());
+    } else {
+      setSuggestions([]);
     }
-    
-    setFormData(newFormData);
   };
 
   const calculateMPG = (startMiles: number, endMiles: number, fuelAmount: number): number => {
@@ -615,12 +612,12 @@ const TripTracker = () => {
       const targetUrl = `${OPENROUTE_API_URL}/directions/driving-hgv?api_key=${apiKey}&start=${lon1},${lat1}&end=${lon2},${lat2}`;
       console.log('Calculating route with URL:', targetUrl);
       
-      const response = await fetch(targetUrl, {
+      const response = await fetch(`${CORS_PROXY}${encodeURIComponent(targetUrl)}`, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json',
+          'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
           'Content-Type': 'application/json',
-          'User-Agent': 'RVR-App/1.0'
+          'User-Agent': 'rvr-app'
         }
       });
 
@@ -880,62 +877,34 @@ const TripTracker = () => {
     }));
   }, [sortedTrips]);
 
-  // Debounced version of fetchSuggestions
-  const debouncedFetchSuggestions = useMemo(
-    () =>
-      debounce(async (query: string, setSuggestions: (locations: Location[]) => void) => {
-        if (query.length < 3) {
-          setSuggestions([]);
-          return;
-        }
-
-        setIsLoadingSuggestions(true);
-        try {
-          const apiKey = import.meta.env.VITE_OPENROUTE_API_KEY;
-          if (!apiKey) {
-            throw new Error('OpenRouteService API key is missing');
-          }
-
-          const targetUrl = `${OPENROUTE_API_URL}/geocode/search?api_key=${apiKey}&text=${encodeURIComponent(query)}&layers=address,street,venue&size=5&boundary.country=US`;
-          
-          const response = await fetch(targetUrl, {
-            method: 'GET',
+  // Update the debounced fetch suggestions function
+  const debouncedFetchSuggestions = useCallback(
+    debounce(async (input: string) => {
+      if (!input.trim()) {
+        setSuggestions([]);
+        return;
+      }
+      try {
+        const response = await fetch(
+          `https://api.openrouteservice.org/geocode/search?api_key=${import.meta.env.VITE_OPENROUTE_API_KEY}&text=${encodeURIComponent(input)}`,
+          {
             headers: {
-              'Accept': 'application/json',
+              'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
               'Content-Type': 'application/json',
-              'User-Agent': 'RVR-App/1.0'
+              'User-Agent': 'rvr-app'
             }
-          });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Suggestions API error:', errorText);
-            throw new Error(`HTTP error! status: ${response.status}`);
           }
-
-          const data = await response.json();
-          // Format locations with more details
-          const locations = data.features.map((feature: any) => ({
-            display_name: feature.properties.label,
-            lat: feature.geometry.coordinates[1],
-            lon: feature.geometry.coordinates[0],
-            place_id: feature.properties.id,
-            address: {
-              city: feature.properties.locality || '',
-              state: feature.properties.region || '',
-              country: feature.properties.country || '',
-              postcode: feature.properties.postalcode || '',
-              road: feature.properties.street || ''
-            }
-          }));
-          setSuggestions(locations);
-        } catch (error) {
-          console.error('Error fetching suggestions:', error);
-          setSuggestions([]);
-        } finally {
-          setIsLoadingSuggestions(false);
+        );
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
-      }, 500),
+        const data = await response.json();
+        setSuggestions(data.features || []);
+      } catch (error) {
+        console.error('Error fetching suggestions:', error);
+        setSuggestions([]);
+      }
+    }, 300),
     []
   );
 
@@ -972,17 +941,9 @@ const TripTracker = () => {
             if (data?.features?.length > 0) {
               const feature = data.features[0];
               const location: Location = {
-                display_name: feature.properties.label,
-                lat: latitude,
-                lon: longitude,
-                place_id: feature.properties.id,
-                address: {
-                  city: feature.properties.locality || '',
-                  state: feature.properties.region || '',
-                  country: feature.properties.country || '',
-                  postcode: feature.properties.postalcode || '',
-                  road: feature.properties.street || ''
-                }
+                label: feature.properties.label,
+                value: feature.properties.label,
+                coordinates: feature.geometry.coordinates
               };
               handleLocationSelect(location, 'origin');
             }
@@ -1006,11 +967,11 @@ const TripTracker = () => {
 
     const newFormData = { ...formData };
     if (type === 'origin') {
-      newFormData.origin = location.display_name;
-      setMarkers(prev => ({ ...prev, origin: [location.lat, location.lon] }));
+      newFormData.origin = location.label;
+      setMarkers(prev => ({ ...prev, origin: location.coordinates }));
     } else {
-      newFormData.destination = location.display_name;
-      setMarkers(prev => ({ ...prev, destination: [location.lat, location.lon] }));
+      newFormData.destination = location.label;
+      setMarkers(prev => ({ ...prev, destination: location.coordinates }));
     }
     setFormData(newFormData);
 
@@ -1365,7 +1326,7 @@ const TripTracker = () => {
                 label="Date"
                 type="date"
                 value={formData.date}
-                onChange={(e) => handleInputChange('date', e.target.value)}
+                onChange={(e) => handleInputChange(e)}
                 InputLabelProps={{ shrink: true }}
                 inputProps={{
                   min: new Date().toISOString().split('T')[0],
@@ -1416,45 +1377,52 @@ const TripTracker = () => {
               <Box sx={{ display: 'grid', gap: 2 }}>
                 <Box sx={{ display: 'flex', gap: 1 }}>
                   <Autocomplete
-                    options={originSuggestions}
-                    getOptionLabel={(option) => option.display_name}
-                    getOptionKey={(option) => option.place_id}
-                    loading={isLoadingSuggestions}
-                    value={originSuggestions.find(s => s.display_name === formData.origin) || null}
-                    onChange={(_, newValue) => handleLocationSelect(newValue, 'origin')}
+                    freeSolo
+                    options={suggestions}
+                    getOptionLabel={(option) => typeof option === 'string' ? option : option.label}
+                    value={formData.origin}
+                    onChange={(_, newValue) => {
+                      if (typeof newValue === 'string') {
+                        setFormData(prev => ({ ...prev, origin: newValue }));
+                      } else if (newValue) {
+                        setFormData(prev => ({ ...prev, origin: newValue.label }));
+                        if (newValue.coordinates) {
+                          setOriginCoordinates(newValue.coordinates);
+                        }
+                      }
+                    }}
                     onInputChange={(_, newInputValue) => {
-                      debouncedFetchSuggestions(newInputValue, setOriginSuggestions);
+                      setFormData(prev => ({ ...prev, origin: newInputValue }));
+                      debouncedFetchSuggestions(newInputValue);
                     }}
                     renderInput={(params) => (
                       <TextField
                         {...params}
                         label="Origin"
-                        placeholder="Enter starting location"
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: 2,
-                            background: 'rgba(255, 255, 255, 0.8)',
-                          }
-                        }}
+                        required
+                        fullWidth
+                        margin="normal"
+                        error={!!errors.origin}
+                        helperText={errors.origin}
                       />
                     )}
-                    renderOption={(props, option) => {
-                      const { key, ...otherProps } = props;
-                      return (
-                        <li key={option.place_id} {...otherProps}>
-                          <Box>
-                            <Typography variant="body1">
-                              {option.address.road || option.display_name.split(',')[0]}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {[option.address.city, option.address.state, option.address.postcode]
-                                .filter(Boolean)
-                                .join(', ')}
-                            </Typography>
-                          </Box>
-                        </li>
-                      );
+                    filterOptions={(options, params) => {
+                      const filter = createFilterOptions<Location>();
+                      const filtered = filter(options, params);
+                      if (params.inputValue !== '') {
+                        filtered.push({
+                          inputValue: params.inputValue,
+                          label: `Add "${params.inputValue}"`,
+                          value: params.inputValue,
+                          coordinates: [0, 0] // Default coordinates for custom input
+                        });
+                      }
+                      return filtered;
                     }}
+                    selectOnFocus
+                    clearOnBlur
+                    handleHomeEndKeys
+                    id="origin-autocomplete"
                   />
                   <Button
                     variant="outlined"
@@ -1467,45 +1435,52 @@ const TripTracker = () => {
                 </Box>
                 <Box sx={{ display: 'flex', gap: 1 }}>
                   <Autocomplete
-                    options={destinationSuggestions}
-                    getOptionLabel={(option) => option.display_name}
-                    getOptionKey={(option) => option.place_id}
-                    loading={isLoadingSuggestions}
-                    value={destinationSuggestions.find(s => s.display_name === formData.destination) || null}
-                    onChange={(_, newValue) => handleLocationSelect(newValue, 'destination')}
+                    freeSolo
+                    options={suggestions}
+                    getOptionLabel={(option) => typeof option === 'string' ? option : option.label}
+                    value={formData.destination}
+                    onChange={(_, newValue) => {
+                      if (typeof newValue === 'string') {
+                        setFormData(prev => ({ ...prev, destination: newValue }));
+                      } else if (newValue) {
+                        setFormData(prev => ({ ...prev, destination: newValue.label }));
+                        if (newValue.coordinates) {
+                          setDestinationCoordinates(newValue.coordinates);
+                        }
+                      }
+                    }}
                     onInputChange={(_, newInputValue) => {
-                      debouncedFetchSuggestions(newInputValue, setDestinationSuggestions);
+                      setFormData(prev => ({ ...prev, destination: newInputValue }));
+                      debouncedFetchSuggestions(newInputValue);
                     }}
                     renderInput={(params) => (
                       <TextField
                         {...params}
                         label="Destination"
-                        placeholder="Enter destination"
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: 2,
-                            background: 'rgba(255, 255, 255, 0.8)',
-                          }
-                        }}
+                        required
+                        fullWidth
+                        margin="normal"
+                        error={!!errors.destination}
+                        helperText={errors.destination}
                       />
                     )}
-                    renderOption={(props, option) => {
-                      const { key, ...otherProps } = props;
-                      return (
-                        <li key={option.place_id} {...otherProps}>
-                          <Box>
-                            <Typography variant="body1">
-                              {option.address.road || option.display_name.split(',')[0]}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {[option.address.city, option.address.state, option.address.postcode]
-                                .filter(Boolean)
-                                .join(', ')}
-                            </Typography>
-                          </Box>
-                        </li>
-                      );
+                    filterOptions={(options, params) => {
+                      const filter = createFilterOptions<Location>();
+                      const filtered = filter(options, params);
+                      if (params.inputValue !== '') {
+                        filtered.push({
+                          inputValue: params.inputValue,
+                          label: `Add "${params.inputValue}"`,
+                          value: params.inputValue,
+                          coordinates: [0, 0] // Default coordinates for custom input
+                        });
+                      }
+                      return filtered;
                     }}
+                    selectOnFocus
+                    clearOnBlur
+                    handleHomeEndKeys
+                    id="destination-autocomplete"
                   />
                   <Button
                     variant="outlined"
