@@ -612,12 +612,12 @@ const TripTracker: React.FC = () => {
       const targetUrl = `${OPENROUTE_API_URL}/directions/driving-hgv?api_key=${apiKey}&start=${lon1},${lat1}&end=${lon2},${lat2}`;
       console.log('Calculating route with URL:', targetUrl);
       
-      const response = await fetch(`${CORS_PROXY}${encodeURIComponent(targetUrl)}`, {
+      const response = await fetch(targetUrl, {
         method: 'GET',
         headers: {
           'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
           'Content-Type': 'application/json',
-          'User-Agent': 'rvr-app'
+          'User-Agent': 'RVR-App/1.0'
         }
       });
 
@@ -667,6 +667,26 @@ const TripTracker: React.FC = () => {
 
       const oneWayDistance = route.summary.distance * 0.000621371;
       const totalDistance = isRoundTrip ? oneWayDistance * 2 : oneWayDistance;
+
+      // Update markers with correct coordinates
+      setMarkers({
+        origin: [lat1, lon1],
+        destination: [lat2, lon2],
+        route: route.geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]])
+      });
+
+      // Calculate bounds to fit the entire route
+      const bounds = route.geometry.coordinates.reduce((acc: [[number, number], [number, number]], coord: [number, number]) => {
+        return [
+          [Math.min(acc[0][0], coord[1]), Math.min(acc[0][1], coord[0])],
+          [Math.max(acc[1][0], coord[1]), Math.max(acc[1][1], coord[0])]
+        ];
+      }, [[lat1, lon1], [lat2, lon2]]);
+
+      // Center map on the route
+      const centerLat = (bounds[0][0] + bounds[1][0]) / 2;
+      const centerLon = (bounds[0][1] + bounds[1][1]) / 2;
+      setMapCenter([centerLat, centerLon]);
 
       // Calculate base MPG based on vehicle configuration
       const baseMPG = truckDetails.vehicleClass === 'class1' || 
@@ -723,43 +743,13 @@ const TripTracker: React.FC = () => {
         estimatedMPG: estimatedMPG.toFixed(1)
       }));
 
-      const originCoord: [number, number] = [lat1, lon1];
-      const destCoord: [number, number] = [lat2, lon2];
-
-      // Convert route coordinates to [lat, lon] format for Leaflet
-      const routeCoordinates = route.geometry.coordinates.reduce((acc: [[number, number], [number, number]], coord: [number, number]) => {
-        return [
-          [Math.min(acc[0][0], coord[1]), Math.min(acc[0][1], coord[0])],
-          [Math.max(acc[1][0], coord[1]), Math.max(acc[1][1], coord[0])]
-        ];
-      }, [[lat1, lon1], [lat2, lon2]]);
-
-      setMarkers({
-        origin: originCoord,
-        destination: destCoord,
-        route: routeCoordinates.map((coord: [number, number]) => [coord[1], coord[0]] as [number, number])
-      });
-
-      // Calculate bounds to fit the entire route
-      const bounds = routeCoordinates.reduce((acc: [[number, number], [number, number]], coord: [number, number]) => {
-        return [
-          [Math.min(acc[0][0], coord[0]), Math.min(acc[0][1], coord[1])],
-          [Math.max(acc[1][0], coord[0]), Math.max(acc[1][1], coord[1])]
-        ];
-      }, [[lat1, lon1], [lat2, lon2]]);
-
-      // Center map on the route
-      const centerLat = (bounds[0][0] + bounds[1][0]) / 2;
-      const centerLon = (bounds[0][1] + bounds[1][1]) / 2;
-      setMapCenter([centerLat, centerLon]);
-
       return {
         distance: totalDistance,
         oneWayDistance,
         duration: `${Math.floor(route.summary.duration / 3600)}h ${Math.round((route.summary.duration % 3600) / 60)}m`,
         coordinates: {
-          origin: originCoord,
-          destination: destCoord
+          origin: [lat1, lon1],
+          destination: [lat2, lon2]
         },
         routeGeometry: {
           type: "LineString",
