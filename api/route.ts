@@ -13,18 +13,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const { start, end } = req.query;
-  const apiKey = process.env.VITE_OPENROUTE_API_KEY;
-
-  if (!apiKey) {
-    return res.status(500).json({ error: 'API key not configured' });
-  }
-
-  if (!start || !end) {
-    return res.status(400).json({ error: 'Missing start or end coordinates' });
-  }
-
   try {
+    const { start, end } = req.query;
+    const apiKey = process.env.VITE_OPENROUTE_API_KEY;
+
+    if (!apiKey) {
+      console.error('OpenRouteService API key is missing');
+      return res.status(500).json({ error: 'API key not configured' });
+    }
+
+    if (!start || !end) {
+      return res.status(400).json({ error: 'Missing start or end coordinates' });
+    }
+
+    console.log('Calculating route with coordinates:', { start, end });
+
     const response = await fetch(
       `https://api.openrouteservice.org/directions/driving-hgv?api_key=${apiKey}&start=${start}&end=${end}`,
       {
@@ -38,13 +41,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('OpenRouteService API error:', errorText);
-      throw new Error(`OpenRouteService API error: ${response.status}`);
+      return res.status(response.status).json({ 
+        error: 'Failed to calculate route',
+        details: errorText
+      });
     }
 
     const data = await response.json();
+    console.log('Route calculation successful');
     res.status(200).json(data);
   } catch (error) {
     console.error('Route calculation error:', error);
-    res.status(500).json({ error: 'Failed to calculate route', details: error.message });
+    res.status(500).json({ 
+      error: 'Failed to calculate route',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 } 
