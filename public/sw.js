@@ -2,13 +2,6 @@ const CACHE_NAME = 'rvr-app-cache-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/assets/vendor.js',
-  '/assets/mui.js',
-  '/assets/maps.js',
-  '/assets/charts.js',
-  '/assets/index.js',
-  '/assets/index.css',
-  '/vite.svg',
   'https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap',
   'https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmSU5fBBc4.woff2',
   'https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxK.woff2',
@@ -74,6 +67,10 @@ self.addEventListener('fetch', (event) => {
                 });
 
               return response;
+            })
+            .catch(() => {
+              // If fetch fails, try to serve from cache
+              return caches.match(event.request);
             });
         })
     );
@@ -87,7 +84,24 @@ self.addEventListener('fetch', (event) => {
         if (response) {
           return response;
         }
-        return fetch(event.request);
+        return fetch(event.request)
+          .then((response) => {
+            if (!response || response.status !== 200 || response.type !== 'basic') {
+              return response;
+            }
+
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME)
+              .then((cache) => {
+                cache.put(event.request, responseToCache);
+              });
+
+            return response;
+          })
+          .catch(() => {
+            // If fetch fails, try to serve from cache
+            return caches.match(event.request);
+          });
       })
   );
 });
