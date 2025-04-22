@@ -910,52 +910,87 @@ const TripTracker: React.FC = () => {
 
   // Add current location function
   const getCurrentLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
+    if (!navigator.geolocation) {
+      console.error('Geolocation is not supported by your browser');
+      return;
+    }
+
+    // Show loading state
+    setRouteLoading(true);
+    setRouteError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
           const { latitude, longitude } = position.coords;
           const apiKey = import.meta.env.VITE_OPENROUTE_API_KEY;
           if (!apiKey) {
             throw new Error('OpenRouteService API key is missing');
           }
 
-          try {
-            const targetUrl = `${OPENROUTE_API_URL}/geocode/reverse?api_key=${apiKey}&point.lon=${longitude}&point.lat=${latitude}&layers=address,street,venue&size=1`;
-            
-            const response = await fetch(targetUrl, {
-              method: 'GET',
-              headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'User-Agent': 'RVR-App/1.0'
-              }
-            });
-
-            if (!response.ok) {
-              const errorText = await response.text();
-              console.error('Reverse geocoding API error:', errorText);
-              throw new Error(`HTTP error! status: ${response.status}`);
+          const targetUrl = `${OPENROUTE_API_URL}/geocode/reverse?api_key=${apiKey}&point.lon=${longitude}&point.lat=${latitude}&layers=address,street,venue&size=1`;
+          
+          const response = await fetch(targetUrl, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'User-Agent': 'RVR-App/1.0'
             }
+          });
 
-            const data = await response.json();
-            if (data?.features?.length > 0) {
-              const feature = data.features[0];
-              const location: Location = {
-                label: feature.properties.label,
-                value: feature.properties.label,
-                coordinates: feature.geometry.coordinates
-              };
-              handleLocationSelect(location, 'origin');
-            }
-          } catch (error) {
-            console.error('Error getting current location:', error);
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Reverse geocoding API error:', errorText);
+            throw new Error(`Failed to get location details. Status: ${response.status}`);
           }
-        },
-        (error) => {
-          console.error('Error getting current location:', error);
+
+          const data = await response.json();
+          if (data?.features?.length > 0) {
+            const feature = data.features[0];
+            const location: Location = {
+              label: feature.properties.label,
+              value: feature.properties.label,
+              coordinates: feature.geometry.coordinates
+            };
+            handleLocationSelect(location, 'origin');
+          } else {
+            throw new Error('No location details found');
+          }
+        } catch (error) {
+          console.error('Error processing location:', error);
+          setRouteError(error instanceof Error ? error.message : 'Failed to process location');
+        } finally {
+          setRouteLoading(false);
         }
-      );
-    }
+      },
+      (error) => {
+        setRouteLoading(false);
+        let errorMessage = 'Failed to get current location';
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Location access was denied. Please enable location services in your browser settings.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Location information is unavailable. Please check your device settings.';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Location request timed out. Please try again.';
+            break;
+          default:
+            errorMessage = `Location error: ${error.message}`;
+        }
+        
+        console.error('Geolocation error:', error);
+        setRouteError(errorMessage);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
   };
 
   // Function to handle location selection
