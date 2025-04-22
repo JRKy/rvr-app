@@ -132,7 +132,8 @@ const EIA_API_BASE_URL = 'https://api.eia.gov/v2';
 const EIA_API_KEY = import.meta.env.VITE_EIA_API_KEY;
 
 const OPENROUTE_API_URL = 'https://api.openrouteservice.org';
-const CORS_PROXY = 'https://cors.sh/';
+const API_BASE_URL = '/api';
+const CORS_PROXY = 'https://corsproxy.io/?';
 const CORS_KEY = import.meta.env.VITE_CORS_KEY;
 
 interface RouteSegment {
@@ -608,15 +609,14 @@ const TripTracker: React.FC = () => {
       }
 
       // Try to find a route with the original coordinates
-      const targetUrl = `${CORS_PROXY}${OPENROUTE_API_URL}/directions/driving-hgv?api_key=${apiKey}&start=${lon1},${lat1}&end=${lon2},${lat2}`;
-      console.log('Calculating route with URL:', targetUrl);
+      const routeUrl = `${API_BASE_URL}/route?start=${lon1},${lat1}&end=${lon2},${lat2}`;
+      console.log('Calculating route with URL:', routeUrl);
       
-      const response = await fetch(targetUrl, {
+      const response = await fetch(routeUrl, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
-          'Content-Type': 'application/json',
-          'User-Agent': 'RVR-App/1.0'
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
         }
       });
 
@@ -995,7 +995,7 @@ const TripTracker: React.FC = () => {
   // Add current location function
   const getCurrentLocation = () => {
     if (!navigator.geolocation) {
-      console.error('Geolocation is not supported by your browser');
+      setRouteError('Geolocation is not supported by your browser. Please enter a location manually.');
       return;
     }
 
@@ -1054,13 +1054,13 @@ const TripTracker: React.FC = () => {
         
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage = 'Location access was denied. Please enable location services in your browser settings.';
+            errorMessage = 'Location access was denied. Please enable location services in your browser settings and try again.';
             break;
           case error.POSITION_UNAVAILABLE:
-            errorMessage = 'Location information is unavailable. Please check your device settings.';
+            errorMessage = 'Location information is unavailable. Please check your device settings and ensure location services are enabled.';
             break;
           case error.TIMEOUT:
-            errorMessage = 'Location request timed out. Please try again.';
+            errorMessage = 'Location request timed out. Please check your internet connection and try again.';
             break;
           default:
             errorMessage = `Location error: ${error.message}`;
