@@ -615,7 +615,7 @@ const TripTracker = () => {
       const targetUrl = `${OPENROUTE_API_URL}/directions/driving-hgv?api_key=${apiKey}&start=${lon1},${lat1}&end=${lon2},${lat2}`;
       console.log('Calculating route with URL:', targetUrl);
       
-      const response = await fetch(`${CORS_PROXY}${encodeURIComponent(targetUrl)}`, {
+      const response = await fetch(targetUrl, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
