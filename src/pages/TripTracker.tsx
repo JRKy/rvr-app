@@ -609,7 +609,7 @@ const TripTracker: React.FC = () => {
       }
 
       // Try to find a route with the original coordinates
-      const targetUrl = `${OPENROUTE_API_URL}/directions/driving-hgv?api_key=${apiKey}&start=${lon1},${lat1}&end=${lon2},${lat2}`;
+      const targetUrl = `${CORS_PROXY}${OPENROUTE_API_URL}/directions/driving-hgv?api_key=${apiKey}&start=${lon1},${lat1}&end=${lon2},${lat2}`;
       console.log('Calculating route with URL:', targetUrl);
       
       const response = await fetch(targetUrl, {
@@ -617,7 +617,8 @@ const TripTracker: React.FC = () => {
         headers: {
           'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
           'Content-Type': 'application/json',
-          'User-Agent': 'RVR-App/1.0'
+          'User-Agent': 'RVR-App/1.0',
+          'x-cors-api-key': CORS_KEY
         }
       });
 
@@ -1558,9 +1559,6 @@ const TripTracker: React.FC = () => {
                       {markers.route && markers.route.length > 0 && (
                         <Polyline
                           positions={markers.route}
-                          color={theme.palette.primary.main}
-                          weight={3}
-                          opacity={0.7}
                           pathOptions={{
                             color: theme.palette.primary.main,
                             weight: 3,
