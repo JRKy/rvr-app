@@ -717,7 +717,7 @@ const TripTracker: React.FC = () => {
       }, 0) / route.segments.length;
 
       // Better MPG on highways
-      mpgAdjustment *= (1 + (highwayPercentage * 0.1)); // 10% better on highways
+      mpgAdjustment *= (1 + (highwayPercentage * 0.1));
 
       // Additional adjustment for towing weight
       if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
@@ -753,8 +753,8 @@ const TripTracker: React.FC = () => {
         oneWayDistance,
         duration: `${Math.floor(route.summary.duration / 3600)}h ${Math.round((route.summary.duration % 3600) / 60)}m`,
         coordinates: {
-          origin: [lat1, lon1],
-          destination: [lat2, lon2]
+          origin: [lat1, lon1] as [number, number],
+          destination: [lat2, lon2] as [number, number]
         },
         routeGeometry: {
           type: "LineString",
@@ -934,10 +934,11 @@ const TripTracker: React.FC = () => {
         } else if (newValue) {
           setFormData(prev => ({ ...prev, [type]: newValue.label }));
           if (newValue.coordinates) {
+            const [lon, lat] = newValue.coordinates;
             if (type === 'origin') {
-              setOriginCoordinates(newValue.coordinates);
+              setMarkers(prev => ({ ...prev, origin: [lat, lon] }));
             } else {
-              setDestinationCoordinates(newValue.coordinates);
+              setMarkers(prev => ({ ...prev, destination: [lat, lon] }));
             }
           }
         }
@@ -1085,12 +1086,13 @@ const TripTracker: React.FC = () => {
     if (!location) return;
 
     const newFormData = { ...formData };
+    const [lon, lat] = location.coordinates;
     if (type === 'origin') {
       newFormData.origin = location.label;
-      setMarkers(prev => ({ ...prev, origin: location.coordinates }));
+      setMarkers(prev => ({ ...prev, origin: [lat, lon] }));
     } else {
       newFormData.destination = location.label;
-      setMarkers(prev => ({ ...prev, destination: location.coordinates }));
+      setMarkers(prev => ({ ...prev, destination: [lat, lon] }));
     }
     setFormData(newFormData);
 
