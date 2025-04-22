@@ -885,27 +885,116 @@ const TripTracker: React.FC = () => {
         return;
       }
       try {
-        const response = await fetch(
-          `https://api.openrouteservice.org/geocode/search?api_key=${import.meta.env.VITE_OPENROUTE_API_KEY}&text=${encodeURIComponent(input)}`,
-          {
-            headers: {
-              'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
-              'Content-Type': 'application/json',
-              'User-Agent': 'rvr-app'
-            }
+        const apiKey = import.meta.env.VITE_OPENROUTE_API_KEY;
+        if (!apiKey) {
+          throw new Error('OpenRouteService API key is missing');
+        }
+
+        const targetUrl = `${OPENROUTE_API_URL}/geocode/search?api_key=${apiKey}&text=${encodeURIComponent(input)}&layers=address,street,venue&size=5&boundary.country=US`;
+        
+        const response = await fetch(targetUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'User-Agent': 'RVR-App/1.0'
           }
-        );
+        });
+
         if (!response.ok) {
+          const errorText = await response.text();
+          console.error('API Error Response:', errorText);
           throw new Error(`HTTP error! status: ${response.status}`);
         }
+
         const data = await response.json();
-        setSuggestions(data.features || []);
+        if (data?.features) {
+          const formattedSuggestions = data.features.map((feature: any) => ({
+            label: feature.properties.label,
+            value: feature.properties.label,
+            coordinates: feature.geometry.coordinates
+          }));
+          setSuggestions(formattedSuggestions);
+        } else {
+          setSuggestions([]);
+        }
       } catch (error) {
         console.error('Error fetching suggestions:', error);
         setSuggestions([]);
       }
     }, 300),
     []
+  );
+
+  // Update the Autocomplete components
+  const renderAutocomplete = (type: 'origin' | 'destination') => (
+    <Autocomplete
+      freeSolo
+      options={suggestions}
+      getOptionLabel={(option) => typeof option === 'string' ? option : option.label}
+      value={type === 'origin' ? formData.origin : formData.destination}
+      onChange={(_, newValue) => {
+        if (typeof newValue === 'string') {
+          setFormData(prev => ({ ...prev, [type]: newValue }));
+        } else if (newValue) {
+          setFormData(prev => ({ ...prev, [type]: newValue.label }));
+          if (newValue.coordinates) {
+            if (type === 'origin') {
+              setOriginCoordinates(newValue.coordinates);
+            } else {
+              setDestinationCoordinates(newValue.coordinates);
+            }
+          }
+        }
+      }}
+      onInputChange={(_, newInputValue) => {
+        setFormData(prev => ({ ...prev, [type]: newInputValue }));
+        debouncedFetchSuggestions(newInputValue);
+      }}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label={type === 'origin' ? 'Origin' : 'Destination'}
+          required
+          fullWidth
+          margin="normal"
+          error={!!errors[type]}
+          helperText={errors[type]}
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 2,
+              background: 'rgba(255, 255, 255, 0.8)',
+              minHeight: '56px',
+              '& .MuiAutocomplete-input': {
+                fontSize: '1.1rem',
+                padding: '12px 14px',
+              },
+            },
+            '& .MuiInputLabel-root': {
+              fontSize: '1.1rem',
+            },
+          }}
+        />
+      )}
+      filterOptions={(options, params) => {
+        const filter = createFilterOptions<Location>();
+        const filtered = filter(options, params);
+        if (params.inputValue !== '') {
+          filtered.push({
+            inputValue: params.inputValue,
+            label: `Add "${params.inputValue}"`,
+            value: params.inputValue,
+            coordinates: [0, 0]
+          });
+        }
+        return filtered;
+      }}
+      selectOnFocus
+      clearOnBlur
+      handleHomeEndKeys
+      id={`${type}-autocomplete`}
+      sx={{ flex: 1 }}
+    />
   );
 
   // Add current location function
@@ -1411,69 +1500,7 @@ const TripTracker: React.FC = () => {
               </Typography>
               <Box sx={{ display: 'grid', gap: 2 }}>
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Autocomplete
-                    freeSolo
-                    options={suggestions}
-                    getOptionLabel={(option) => typeof option === 'string' ? option : option.label}
-                    value={formData.origin}
-                    onChange={(_, newValue) => {
-                      if (typeof newValue === 'string') {
-                        setFormData(prev => ({ ...prev, origin: newValue }));
-                      } else if (newValue) {
-                        setFormData(prev => ({ ...prev, origin: newValue.label }));
-                        if (newValue.coordinates) {
-                          setOriginCoordinates(newValue.coordinates);
-                        }
-                      }
-                    }}
-                    onInputChange={(_, newInputValue) => {
-                      setFormData(prev => ({ ...prev, origin: newInputValue }));
-                      debouncedFetchSuggestions(newInputValue);
-                    }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Origin"
-                        required
-                        fullWidth
-                        margin="normal"
-                        error={!!errors.origin}
-                        helperText={errors.origin}
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: 2,
-                            background: 'rgba(255, 255, 255, 0.8)',
-                            minHeight: '56px',
-                            '& .MuiAutocomplete-input': {
-                              fontSize: '1.1rem',
-                              padding: '12px 14px',
-                            },
-                          },
-                          '& .MuiInputLabel-root': {
-                            fontSize: '1.1rem',
-                          },
-                        }}
-                      />
-                    )}
-                    filterOptions={(options, params) => {
-                      const filter = createFilterOptions<Location>();
-                      const filtered = filter(options, params);
-                      if (params.inputValue !== '') {
-                        filtered.push({
-                          inputValue: params.inputValue,
-                          label: `Add "${params.inputValue}"`,
-                          value: params.inputValue,
-                          coordinates: [0, 0]
-                        });
-                      }
-                      return filtered;
-                    }}
-                    selectOnFocus
-                    clearOnBlur
-                    handleHomeEndKeys
-                    id="origin-autocomplete"
-                    sx={{ flex: 1 }}
-                  />
+                  {renderAutocomplete('origin')}
                   <Button
                     variant="outlined"
                     onClick={getCurrentLocation}
@@ -1488,69 +1515,7 @@ const TripTracker: React.FC = () => {
                   </Button>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Autocomplete
-                    freeSolo
-                    options={suggestions}
-                    getOptionLabel={(option) => typeof option === 'string' ? option : option.label}
-                    value={formData.destination}
-                    onChange={(_, newValue) => {
-                      if (typeof newValue === 'string') {
-                        setFormData(prev => ({ ...prev, destination: newValue }));
-                      } else if (newValue) {
-                        setFormData(prev => ({ ...prev, destination: newValue.label }));
-                        if (newValue.coordinates) {
-                          setDestinationCoordinates(newValue.coordinates);
-                        }
-                      }
-                    }}
-                    onInputChange={(_, newInputValue) => {
-                      setFormData(prev => ({ ...prev, destination: newInputValue }));
-                      debouncedFetchSuggestions(newInputValue);
-                    }}
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Destination"
-                        required
-                        fullWidth
-                        margin="normal"
-                        error={!!errors.destination}
-                        helperText={errors.destination}
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: 2,
-                            background: 'rgba(255, 255, 255, 0.8)',
-                            minHeight: '56px',
-                            '& .MuiAutocomplete-input': {
-                              fontSize: '1.1rem',
-                              padding: '12px 14px',
-                            },
-                          },
-                          '& .MuiInputLabel-root': {
-                            fontSize: '1.1rem',
-                          },
-                        }}
-                      />
-                    )}
-                    filterOptions={(options, params) => {
-                      const filter = createFilterOptions<Location>();
-                      const filtered = filter(options, params);
-                      if (params.inputValue !== '') {
-                        filtered.push({
-                          inputValue: params.inputValue,
-                          label: `Add "${params.inputValue}"`,
-                          value: params.inputValue,
-                          coordinates: [0, 0]
-                        });
-                      }
-                      return filtered;
-                    }}
-                    selectOnFocus
-                    clearOnBlur
-                    handleHomeEndKeys
-                    id="destination-autocomplete"
-                    sx={{ flex: 1 }}
-                  />
+                  {renderAutocomplete('destination')}
                   <Button
                     variant="outlined"
                     onClick={getCurrentLocation}
