@@ -628,6 +628,7 @@ const TripTracker: React.FC = () => {
       }
 
       const data = await response.json();
+      console.log('Route data:', data); // Debug log
       
       if (!data || typeof data !== 'object') {
         console.error('Invalid API response structure:', data);
@@ -668,18 +669,22 @@ const TripTracker: React.FC = () => {
       const oneWayDistance = route.summary.distance * 0.000621371;
       const totalDistance = isRoundTrip ? oneWayDistance * 2 : oneWayDistance;
 
+      // Convert route coordinates to [lat, lon] format for Leaflet
+      const routeCoordinates = route.geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
+      console.log('Route coordinates:', routeCoordinates); // Debug log
+
       // Update markers with correct coordinates
       setMarkers({
         origin: [lat1, lon1],
         destination: [lat2, lon2],
-        route: route.geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]])
+        route: routeCoordinates
       });
 
       // Calculate bounds to fit the entire route
-      const bounds = route.geometry.coordinates.reduce((acc: [[number, number], [number, number]], coord: [number, number]) => {
+      const bounds = routeCoordinates.reduce((acc: [[number, number], [number, number]], coord: [number, number]) => {
         return [
-          [Math.min(acc[0][0], coord[1]), Math.min(acc[0][1], coord[0])],
-          [Math.max(acc[1][0], coord[1]), Math.max(acc[1][1], coord[0])]
+          [Math.min(acc[0][0], coord[0]), Math.min(acc[0][1], coord[1])],
+          [Math.max(acc[1][0], coord[0]), Math.max(acc[1][1], coord[1])]
         ];
       }, [[lat1, lon1], [lat2, lon2]]);
 
@@ -1554,6 +1559,12 @@ const TripTracker: React.FC = () => {
                           color={theme.palette.primary.main}
                           weight={3}
                           opacity={0.7}
+                          pathOptions={{
+                            color: theme.palette.primary.main,
+                            weight: 3,
+                            opacity: 0.7,
+                            dashArray: '5, 10'
+                          }}
                         />
                       )}
                     </MapContainer>
