@@ -1439,6 +1439,20 @@ const TripTracker: React.FC = () => {
                         margin="normal"
                         error={!!errors.origin}
                         helperText={errors.origin}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            background: 'rgba(255, 255, 255, 0.8)',
+                            minHeight: '56px',
+                            '& .MuiAutocomplete-input': {
+                              fontSize: '1.1rem',
+                              padding: '12px 14px',
+                            },
+                          },
+                          '& .MuiInputLabel-root': {
+                            fontSize: '1.1rem',
+                          },
+                        }}
                       />
                     )}
                     filterOptions={(options, params) => {
@@ -1449,7 +1463,7 @@ const TripTracker: React.FC = () => {
                           inputValue: params.inputValue,
                           label: `Add "${params.inputValue}"`,
                           value: params.inputValue,
-                          coordinates: [0, 0] // Default coordinates for custom input
+                          coordinates: [0, 0]
                         });
                       }
                       return filtered;
@@ -1458,11 +1472,16 @@ const TripTracker: React.FC = () => {
                     clearOnBlur
                     handleHomeEndKeys
                     id="origin-autocomplete"
+                    sx={{ flex: 1 }}
                   />
                   <Button
                     variant="outlined"
                     onClick={getCurrentLocation}
-                    sx={{ minWidth: 'auto' }}
+                    sx={{ 
+                      minWidth: '56px',
+                      height: '56px',
+                      alignSelf: 'center'
+                    }}
                     title="Use current location"
                   >
                     <MyLocation />
@@ -1497,6 +1516,20 @@ const TripTracker: React.FC = () => {
                         margin="normal"
                         error={!!errors.destination}
                         helperText={errors.destination}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                            background: 'rgba(255, 255, 255, 0.8)',
+                            minHeight: '56px',
+                            '& .MuiAutocomplete-input': {
+                              fontSize: '1.1rem',
+                              padding: '12px 14px',
+                            },
+                          },
+                          '& .MuiInputLabel-root': {
+                            fontSize: '1.1rem',
+                          },
+                        }}
                       />
                     )}
                     filterOptions={(options, params) => {
@@ -1507,7 +1540,7 @@ const TripTracker: React.FC = () => {
                           inputValue: params.inputValue,
                           label: `Add "${params.inputValue}"`,
                           value: params.inputValue,
-                          coordinates: [0, 0] // Default coordinates for custom input
+                          coordinates: [0, 0]
                         });
                       }
                       return filtered;
@@ -1516,11 +1549,16 @@ const TripTracker: React.FC = () => {
                     clearOnBlur
                     handleHomeEndKeys
                     id="destination-autocomplete"
+                    sx={{ flex: 1 }}
                   />
                   <Button
                     variant="outlined"
                     onClick={getCurrentLocation}
-                    sx={{ minWidth: 'auto' }}
+                    sx={{ 
+                      minWidth: '56px',
+                      height: '56px',
+                      alignSelf: 'center'
+                    }}
                     title="Use current location"
                   >
                     <MyLocation />
