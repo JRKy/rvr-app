@@ -2,8 +2,12 @@ const CACHE_NAME = 'rvr-app-cache-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/assets/index.css',
+  '/assets/vendor.js',
+  '/assets/mui.js',
+  '/assets/maps.js',
+  '/assets/charts.js',
   '/assets/index.js',
+  '/assets/index.css',
   '/vite.svg',
   'https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap',
   'https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmSU5fBBc4.woff2',
@@ -49,29 +53,41 @@ self.addEventListener('fetch', (event) => {
     return fetch(event.request);
   }
 
+  // Handle requests for assets
+  if (event.request.url.includes('/assets/')) {
+    event.respondWith(
+      caches.match(event.request)
+        .then((response) => {
+          if (response) {
+            return response;
+          }
+          return fetch(event.request)
+            .then((response) => {
+              if (!response || response.status !== 200 || response.type !== 'basic') {
+                return response;
+              }
+
+              const responseToCache = response.clone();
+              caches.open(CACHE_NAME)
+                .then((cache) => {
+                  cache.put(event.request, responseToCache);
+                });
+
+              return response;
+            });
+        })
+    );
+    return;
+  }
+
+  // For all other requests, try the cache first
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
         if (response) {
           return response;
         }
-        return fetch(event.request)
-          .then((response) => {
-            // Don't cache if not a valid response
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-
-            // Clone the response as it can only be used once
-            const responseToCache = response.clone();
-
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, responseToCache);
-              });
-
-            return response;
-          });
+        return fetch(event.request);
       })
   );
 });
