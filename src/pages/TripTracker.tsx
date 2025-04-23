@@ -36,7 +36,7 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { ArrowUpward, ArrowDownward, CalendarToday, MyLocation } from '@mui/icons-material';
+import { ArrowUpward, ArrowDownward, CalendarToday, MyLocation, LocalGasStation, Route, History } from '@mui/icons-material';
 import { MapContainer, TileLayer, Marker, Popup, useMap, ZoomControl, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -1147,11 +1147,23 @@ const TripTracker: React.FC = () => {
         <Tabs
           value={activeTab}
           onChange={(_, newValue) => setActiveTab(newValue)}
-          sx={{ mb: 3 }}
+          centered
         >
-          <Tab label="Fuel Estimate" />
-          <Tab label="Trip Details" />
-          <Tab label="Trip History" />
+          <Tab 
+            icon={<LocalGasStation />} 
+            label="Fuel Estimate" 
+            iconPosition="start"
+          />
+          <Tab 
+            icon={<Route />} 
+            label="Trip Details" 
+            iconPosition="start"
+          />
+          <Tab 
+            icon={<History />} 
+            label="Trip History" 
+            iconPosition="start"
+          />
         </Tabs>
 
         {activeTab === 0 && (
@@ -1431,23 +1443,6 @@ const TripTracker: React.FC = () => {
                 inputProps={{
                   min: new Date().toISOString().split('T')[0],
                   max: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]
-                }}
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => {
-                          const input = document.querySelector('input[type="date"]') as HTMLInputElement;
-                          if (input) {
-                            input.showPicker();
-                          }
-                        }}
-                        edge="end"
-                      >
-                        <CalendarToday />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
                 }}
                 sx={{
                   '& .MuiOutlinedInput-root': {
