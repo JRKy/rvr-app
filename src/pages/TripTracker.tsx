@@ -499,6 +499,27 @@ const TripTracker: React.FC = () => {
           });
       }
       
+      // Calculate and update average MPG when relevant fields change
+      if (['vehicleClass', 'wheelConfig', 'fuelType', 'loadStatus', 'trailerWeight'].includes(field)) {
+        const baseMPG = newDetails.vehicleClass === 'class1' || 
+                       newDetails.vehicleClass === 'class2' || 
+                       newDetails.vehicleClass === 'class3' || 
+                       newDetails.vehicleClass === 'class4'
+          ? BASE_MPG[newDetails.vehicleClass][newDetails.wheelConfig][newDetails.fuelType][newDetails.loadStatus]
+          : BASE_MPG[newDetails.vehicleClass][newDetails.fuelType][newDetails.loadStatus];
+        
+        let mpgAdjustment = 1.0;
+        
+        // Adjust for trailer weight if towing
+        if (newDetails.loadStatus === 'towing' && newDetails.trailerWeight) {
+          const trailerWeight = parseFloat(newDetails.trailerWeight);
+          mpgAdjustment *= (1 - (trailerWeight * 0.000001)); // 0.1% reduction per 1000 lbs
+        }
+        
+        const adjustedMPG = baseMPG * mpgAdjustment;
+        newDetails.averageMPG = adjustedMPG.toFixed(1);
+      }
+      
       return newDetails;
     });
   };
@@ -1175,14 +1196,15 @@ const TripTracker: React.FC = () => {
           onChange={(_, newValue) => setActiveTab(newValue)}
           sx={{ mb: 3 }}
         >
-          <Tab label="Truck Details" />
-          <Tab label="Trip Log" />
+          <Tab label="Vehicle Details" />
+          <Tab label="Trip Details" />
+          <Tab label="Trip History" />
         </Tabs>
 
         {activeTab === 0 && (
           <Box sx={{ display: 'grid', gap: 3 }}>
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Truck Specifications
+              Vehicle Specifications
             </Typography>
             
             <FormControl fullWidth>
@@ -1426,22 +1448,6 @@ const TripTracker: React.FC = () => {
                 })()}
               </Typography>
             </Box>
-
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Cost per Tank
-              </Typography>
-              <Typography variant="h4" sx={{ color: 'primary.main' }}>
-                {(() => {
-                  const fuelTankSize = parseFloat(truckDetails.fuelTankSize);
-                  const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice);
-                  if (isNaN(fuelTankSize) || fuelTankSize <= 0) return 'Enter fuel tank size';
-                  if (isNaN(currentFuelPrice) || currentFuelPrice <= 0) return 'Enter fuel price';
-                  
-                  return `$${(fuelTankSize * currentFuelPrice).toFixed(2)}`;
-                })()}
-              </Typography>
-            </Box>
           </Box>
         )}
 
@@ -1672,7 +1678,7 @@ const TripTracker: React.FC = () => {
           </Box>
         )}
 
-        {trips.length > 0 && (
+        {activeTab === 2 && (
           <Box sx={{ mt: 4 }}>
             {/* Total Statistics */}
             <Paper 
