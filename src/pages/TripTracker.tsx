@@ -691,7 +691,7 @@ const TripTracker: React.FC = () => {
       // Adjust MPG based on route characteristics
       let mpgAdjustment = 1.0;
       
-      // Adjust for road types (OSRM doesn't provide elevation data)
+      // Adjust for road types
       const highwayPercentage = route.legs[0].steps.reduce((acc: number, step: any) => {
         const isHighway = step.maneuver.type.includes('motorway') || 
                          step.maneuver.type.includes('trunk') || 
@@ -705,7 +705,6 @@ const TripTracker: React.FC = () => {
       // Additional adjustment for towing weight
       if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
         const trailerWeight = parseFloat(truckDetails.trailerWeight);
-        // Reduce MPG by 0.1% per 1000 lbs of trailer weight
         mpgAdjustment *= (1 - (trailerWeight * 0.000001));
       }
 
@@ -716,6 +715,7 @@ const TripTracker: React.FC = () => {
       const gallonsNeeded = totalDistance / estimatedMPG;
       const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice) || 0;
       const fuelCost = gallonsNeeded * currentFuelPrice;
+      const costPerMile = currentFuelPrice / estimatedMPG;
 
       // Update form data with calculated values
       setFormData(prev => ({
@@ -724,7 +724,6 @@ const TripTracker: React.FC = () => {
         fuelAmount: gallonsNeeded.toFixed(1),
         fuelCost: fuelCost.toFixed(2),
         isRoundTrip,
-        elevation: null, // OSRM doesn't provide elevation data
         estimatedMPG: estimatedMPG.toFixed(1)
       }));
 
@@ -807,7 +806,7 @@ const TripTracker: React.FC = () => {
         duration: routeInfo.duration,
         coordinates: routeInfo.coordinates,
         routeGeometry: routeInfo.routeGeometry,
-        isRoundTrip: formData.isRoundTrip
+        isRoundTrip: formData.isRoundTrip,
       } : undefined
     };
     
@@ -1254,9 +1253,9 @@ const TripTracker: React.FC = () => {
             </FormControl>
 
             {truckDetails.loadStatus === 'towing' && (
-              <TextField
+                    <TextField
                 label="Trailer Weight (lbs)"
-                type="number"
+                      type="number"
                 value={truckDetails.trailerWeight || ''}
                 onChange={(e) => handleTruckDetailsChange('trailerWeight', e.target.value)}
                 inputProps={{ min: 0, step: 100 }}
@@ -1264,9 +1263,9 @@ const TripTracker: React.FC = () => {
               />
             )}
 
-            <TextField
+                    <TextField
               label="Fuel Tank Size (gallons)"
-              type="number"
+                      type="number"
               value={truckDetails.fuelTankSize}
               onChange={(e) => handleTruckDetailsChange('fuelTankSize', e.target.value)}
               inputProps={{ min: 0, step: 1 }}
@@ -1285,9 +1284,9 @@ const TripTracker: React.FC = () => {
             </FormControl>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <TextField
+                    <TextField
                 label="Current Fuel Price ($/gallon)"
-                type="number"
+                      type="number"
                 value={truckDetails.currentFuelPrice}
                 onChange={(e) => handleTruckDetailsChange('currentFuelPrice', e.target.value)}
                 sx={{
@@ -1514,7 +1513,7 @@ const TripTracker: React.FC = () => {
                 Trip Details
               </Typography>
               <Box sx={{ display: 'grid', gap: 3 }}>
-                <TextField
+                    <TextField
                   name="date"
                   label="Date"
                   type="date"
@@ -1619,9 +1618,9 @@ const TripTracker: React.FC = () => {
                         {(() => {
                           const distance = parseFloat(formData.distance) || 0;
                           const baseMPG = truckDetails.vehicleClass === 'class1' || 
-                                       truckDetails.vehicleClass === 'class2' || 
-                                       truckDetails.vehicleClass === 'class3' || 
-                                       truckDetails.vehicleClass === 'class4'
+                                         truckDetails.vehicleClass === 'class2' || 
+                                         truckDetails.vehicleClass === 'class3' || 
+                                         truckDetails.vehicleClass === 'class4'
                             ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
                             : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
                           
@@ -1644,9 +1643,9 @@ const TripTracker: React.FC = () => {
                           const distance = parseFloat(formData.distance) || 0;
                           const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice) || 0;
                           const baseMPG = truckDetails.vehicleClass === 'class1' || 
-                                       truckDetails.vehicleClass === 'class2' || 
-                                       truckDetails.vehicleClass === 'class3' || 
-                                       truckDetails.vehicleClass === 'class4'
+                                         truckDetails.vehicleClass === 'class2' || 
+                                         truckDetails.vehicleClass === 'class3' || 
+                                         truckDetails.vehicleClass === 'class4'
                             ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
                             : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
                           
@@ -1669,9 +1668,9 @@ const TripTracker: React.FC = () => {
                         {(() => {
                           const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice) || 0;
                           const baseMPG = truckDetails.vehicleClass === 'class1' || 
-                                       truckDetails.vehicleClass === 'class2' || 
-                                       truckDetails.vehicleClass === 'class3' || 
-                                       truckDetails.vehicleClass === 'class4'
+                                         truckDetails.vehicleClass === 'class2' || 
+                                         truckDetails.vehicleClass === 'class3' || 
+                                         truckDetails.vehicleClass === 'class4'
                             ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
                             : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
                           
@@ -1703,9 +1702,9 @@ const TripTracker: React.FC = () => {
                     }
                     label="Round Trip"
                   />
-                  <Button
-                    type="submit"
-                    variant="contained"
+                    <Button
+                      type="submit"
+                      variant="contained"
                     size="large"
                     disabled={!formData.date || !formData.origin || !formData.destination}
                     sx={{
@@ -1726,9 +1725,9 @@ const TripTracker: React.FC = () => {
                         transform: 'translateY(0)',
                       }
                     }}
-                  >
-                    Add Trip
-                  </Button>
+                    >
+                      Add Trip
+                    </Button>
                 </Box>
               </Box>
             </Paper>
@@ -1776,23 +1775,23 @@ const TripTracker: React.FC = () => {
                 </Box>
               </Box>
 
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Route</TableCell>
-                    <TableCell align="right">Miles</TableCell>
-                    <TableCell align="right">Fuel (gal)</TableCell>
-                    <TableCell align="right">Cost</TableCell>
-                    <TableCell align="right">MPG</TableCell>
-                    <TableCell align="right">Cost/Mile</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Date</TableCell>
+                  <TableCell>Route</TableCell>
+                  <TableCell align="right">Miles</TableCell>
+                  <TableCell align="right">Fuel (gal)</TableCell>
+                  <TableCell align="right">Cost</TableCell>
+                  <TableCell align="right">MPG</TableCell>
+                  <TableCell align="right">Cost/Mile</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                   {sortedTrips.map((trip) => (
-                    <TableRow key={trip.id}>
+                  <TableRow key={trip.id}>
                       <TableCell>{trip.date}</TableCell>
-                      <TableCell>
+                    <TableCell>
                         {trip.route ? (
                           <Box>
                             <Typography variant="body2" color="text.secondary">
@@ -1811,7 +1810,7 @@ const TripTracker: React.FC = () => {
                         ) : (
                           'Manual Entry'
                         )}
-                      </TableCell>
+                    </TableCell>
                       <TableCell align="right">
                         {trip.route ? trip.route.distance.toFixed(1) : '0.0'} miles
                       </TableCell>
@@ -1826,11 +1825,11 @@ const TripTracker: React.FC = () => {
                       </TableCell>
                       <TableCell align="right">
                         ${trip.costPerMile.toFixed(3)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
             </Paper>
 
             {/* Statistics and Chart */}
@@ -1856,7 +1855,7 @@ const TripTracker: React.FC = () => {
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
                       {totalStats.totalMiles.toFixed(1)}
                     </Typography>
-                  </Box>
+    </Box>
                   <Box>
                     <Typography variant="subtitle2" color="text.secondary">Total Fuel Cost</Typography>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
