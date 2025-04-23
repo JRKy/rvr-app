@@ -620,18 +620,13 @@ const TripTracker: React.FC = () => {
         throw new Error('Could not find one or both locations');
       }
 
-      // Get the road route using OpenRouteService
+      // Get the road route using OSRM
       const [lat1, lon1] = originCoords;
       const [lat2, lon2] = destCoords;
       
-      const apiKey = import.meta.env.VITE_OPENROUTE_API_KEY;
-      if (!apiKey) {
-        throw new Error('OpenRouteService API key is missing. Please check your environment variables.');
-      }
-
-      // Try to find a route with the original coordinates
-      const routeUrl = `${API_BASE_URL}/route?start=${lon1},${lat1}&end=${lon2},${lat2}`;
-      console.log('Calculating route with URL:', routeUrl);
+      // Use OSRM's route service
+      const routeUrl = `https://router.project-osrm.org/route/v1/driving/${lon1},${lat1};${lon2},${lat2}?overview=full&geometries=geojson`;
+      console.log('Calculating route with OSRM URL:', routeUrl);
       
       const response = await fetch(routeUrl, {
         method: 'GET',
@@ -643,55 +638,24 @@ const TripTracker: React.FC = () => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('API Error Response:', errorText);
+        console.error('OSRM Error Response:', errorText);
         throw new Error(`Failed to calculate route. Status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('Route data:', data); // Debug log
+      console.log('OSRM Route data:', data);
       
-      if (!data || typeof data !== 'object') {
-        console.error('Invalid API response structure:', data);
-        throw new Error('Invalid response structure from route service');
-      }
-
-      // Handle specific OpenRouteService error codes
-      if (data.error) {
-        const errorCode = data.error.code;
-        const errorMessage = data.error.message;
-        
-        switch (errorCode) {
-          case 2010: // No routable point found
-            throw new Error(
-              `Could not find a valid route near ${destination}. This usually means the location is slightly off the road network. ` +
-              `Try using a nearby landmark, intersection, or a more general location.`
-            );
-          case 2004: // Invalid coordinates
-            throw new Error('Invalid location coordinates. Please check the addresses and try again.');
-          case 2003: // No route found
-            throw new Error('No route could be found between these locations. Please try different start or end points.');
-          default:
-            throw new Error(`Route calculation failed: ${errorMessage}`);
-        }
-      }
-      
-      if (!data.routes || !Array.isArray(data.routes) || data.routes.length === 0) {
-        console.error('No routes in response:', data);
-        throw new Error('No routes found in the response. Please check your locations and try again.');
+      if (!data || typeof data !== 'object' || !data.routes || !Array.isArray(data.routes) || data.routes.length === 0) {
+        throw new Error('Invalid response from OSRM');
       }
 
       const route = data.routes[0];
-      if (!route || !route.summary || !route.geometry) {
-        console.error('Invalid route data:', route);
-        throw new Error('Invalid route data received. Please try again.');
-      }
-
-      const oneWayDistance = route.summary.distance * 0.000621371;
+      const oneWayDistance = route.distance * 0.000621371; // Convert meters to miles
       const totalDistance = isRoundTrip ? oneWayDistance * 2 : oneWayDistance;
 
       // Convert route coordinates to [lat, lon] format for Leaflet
       const routeCoordinates = route.geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
-      console.log('Route coordinates:', routeCoordinates); // Debug log
+      console.log('Route coordinates:', routeCoordinates);
 
       // Update markers with correct coordinates
       setMarkers({
@@ -724,17 +688,13 @@ const TripTracker: React.FC = () => {
       // Adjust MPG based on route characteristics
       let mpgAdjustment = 1.0;
       
-      // Adjust for elevation changes
-      const elevationFactor = 1 - (route.summary.ascent * 0.00005); // 5% reduction per 100m ascent
-      mpgAdjustment *= elevationFactor;
-
-      // Adjust for road types
-      const highwayPercentage = route.segments.reduce((acc: number, segment: { steps: Array<{ type: number }> }) => {
-        const highwaySteps = segment.steps.filter((step: { type: number }) => 
-          step.type >= 0 && step.type <= 3 // Highway types
-        ).length;
-        return acc + (highwaySteps / segment.steps.length);
-      }, 0) / route.segments.length;
+      // Adjust for road types (OSRM doesn't provide elevation data)
+      const highwayPercentage = route.legs[0].steps.reduce((acc: number, step: any) => {
+        const isHighway = step.maneuver.type.includes('motorway') || 
+                         step.maneuver.type.includes('trunk') || 
+                         step.maneuver.type.includes('primary');
+        return acc + (isHighway ? 1 : 0);
+      }, 0) / route.legs[0].steps.length;
 
       // Better MPG on highways
       mpgAdjustment *= (1 + (highwayPercentage * 0.1));
@@ -761,17 +721,14 @@ const TripTracker: React.FC = () => {
         fuelAmount: gallonsNeeded.toFixed(1),
         fuelCost: fuelCost.toFixed(2),
         isRoundTrip,
-        elevation: {
-          ascent: route.summary.ascent.toFixed(0),
-          descent: route.summary.descent.toFixed(0)
-        },
+        elevation: null, // OSRM doesn't provide elevation data
         estimatedMPG: estimatedMPG.toFixed(1)
       }));
 
       return {
         distance: totalDistance,
         oneWayDistance,
-        duration: `${Math.floor(route.summary.duration / 3600)}h ${Math.round((route.summary.duration % 3600) / 60)}m`,
+        duration: `${Math.floor(route.duration / 3600)}h ${Math.round((route.duration % 3600) / 60)}m`,
         coordinates: {
           origin: [lat1, lon1] as [number, number],
           destination: [lat2, lon2] as [number, number]
@@ -779,10 +736,6 @@ const TripTracker: React.FC = () => {
         routeGeometry: {
           type: "LineString",
           coordinates: route.geometry.coordinates
-        },
-        elevation: {
-          ascent: route.summary.ascent,
-          descent: route.summary.descent
         },
         estimatedMPG
       };
@@ -1196,7 +1149,7 @@ const TripTracker: React.FC = () => {
           onChange={(_, newValue) => setActiveTab(newValue)}
           sx={{ mb: 3 }}
         >
-          <Tab label="Vehicle Details" />
+          <Tab label="Fuel Estimate" />
           <Tab label="Trip Details" />
           <Tab label="Trip History" />
         </Tabs>
@@ -1448,6 +1401,21 @@ const TripTracker: React.FC = () => {
                 })()}
               </Typography>
             </Box>
+
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                Total Fuel Tank Refill Cost
+              </Typography>
+              <Typography variant="h4" sx={{ color: 'primary.main' }}>
+                {(() => {
+                  const fuelTankSize = parseFloat(truckDetails.fuelTankSize);
+                  const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice);
+                  if (isNaN(fuelTankSize) || fuelTankSize <= 0) return 'Enter fuel tank size';
+                  if (isNaN(currentFuelPrice) || currentFuelPrice <= 0) return 'Enter fuel price';
+                  return `$${(fuelTankSize * currentFuelPrice).toFixed(2)}`;
+                })()}
+              </Typography>
+            </Box>
           </Box>
         )}
 
@@ -1622,27 +1590,104 @@ const TripTracker: React.FC = () => {
                     </Typography>
                   </Box>
                   <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Elevation Change</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {formData.elevation ? `+${formData.elevation.ascent}ft / -${formData.elevation.descent}ft` : 'N/A'}
-                    </Typography>
-                  </Box>
-                  <Box>
                     <Typography variant="subtitle2" color="text.secondary">Estimated MPG</Typography>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {formData.estimatedMPG}
+                      {(() => {
+                        const baseMPG = truckDetails.vehicleClass === 'class1' || 
+                                     truckDetails.vehicleClass === 'class2' || 
+                                     truckDetails.vehicleClass === 'class3' || 
+                                     truckDetails.vehicleClass === 'class4'
+                          ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
+                          : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
+                        
+                        let mpgAdjustment = 1.0;
+                        
+                        // Adjust for trailer weight if towing
+                        if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
+                          const trailerWeight = parseFloat(truckDetails.trailerWeight);
+                          mpgAdjustment *= (1 - (trailerWeight * 0.000001)); // 0.1% reduction per 1000 lbs
+                        }
+                        
+                        const adjustedMPG = baseMPG * mpgAdjustment;
+                        return `${adjustedMPG.toFixed(1)}`;
+                      })()}
                     </Typography>
                   </Box>
                   <Box>
                     <Typography variant="subtitle2" color="text.secondary">Estimated Fuel Needed</Typography>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {formData.fuelAmount} gal
+                      {(() => {
+                        const distance = parseFloat(formData.distance) || 0;
+                        const baseMPG = truckDetails.vehicleClass === 'class1' || 
+                                     truckDetails.vehicleClass === 'class2' || 
+                                     truckDetails.vehicleClass === 'class3' || 
+                                     truckDetails.vehicleClass === 'class4'
+                          ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
+                          : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
+                        
+                        let mpgAdjustment = 1.0;
+                        
+                        // Adjust for trailer weight if towing
+                        if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
+                          const trailerWeight = parseFloat(truckDetails.trailerWeight);
+                          mpgAdjustment *= (1 - (trailerWeight * 0.000001)); // 0.1% reduction per 1000 lbs
+                        }
+                        
+                        const adjustedMPG = baseMPG * mpgAdjustment;
+                        return `${(distance / adjustedMPG).toFixed(1)} gal`;
+                      })()}
                     </Typography>
                   </Box>
                   <Box>
                     <Typography variant="subtitle2" color="text.secondary">Estimated Cost</Typography>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      ${formData.fuelCost}
+                      {(() => {
+                        const distance = parseFloat(formData.distance) || 0;
+                        const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice) || 0;
+                        const baseMPG = truckDetails.vehicleClass === 'class1' || 
+                                     truckDetails.vehicleClass === 'class2' || 
+                                     truckDetails.vehicleClass === 'class3' || 
+                                     truckDetails.vehicleClass === 'class4'
+                          ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
+                          : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
+                        
+                        let mpgAdjustment = 1.0;
+                        
+                        // Adjust for trailer weight if towing
+                        if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
+                          const trailerWeight = parseFloat(truckDetails.trailerWeight);
+                          mpgAdjustment *= (1 - (trailerWeight * 0.000001)); // 0.1% reduction per 1000 lbs
+                        }
+                        
+                        const adjustedMPG = baseMPG * mpgAdjustment;
+                        const gallonsNeeded = distance / adjustedMPG;
+                        return `$${(gallonsNeeded * currentFuelPrice).toFixed(2)}`;
+                      })()}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary">Cost per Mile</Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                      {(() => {
+                        const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice) || 0;
+                        const baseMPG = truckDetails.vehicleClass === 'class1' || 
+                                     truckDetails.vehicleClass === 'class2' || 
+                                     truckDetails.vehicleClass === 'class3' || 
+                                     truckDetails.vehicleClass === 'class4'
+                          ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
+                          : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
+                        
+                        let mpgAdjustment = 1.0;
+                        
+                        // Adjust for trailer weight if towing
+                        if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
+                          const trailerWeight = parseFloat(truckDetails.trailerWeight);
+                          mpgAdjustment *= (1 - (trailerWeight * 0.000001)); // 0.1% reduction per 1000 lbs
+                        }
+                        
+                        const adjustedMPG = baseMPG * mpgAdjustment;
+                        return `$${(currentFuelPrice / adjustedMPG).toFixed(2)}`;
+                      })()}
                     </Typography>
                   </Box>
                 </Box>
