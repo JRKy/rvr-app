@@ -61,6 +61,14 @@ interface Trip {
   notes: string;
   mpg: number;
   costPerMile: number;
+  vehicleDetails: {
+    vehicleClass: string;
+    wheelConfig?: string;
+    fuelType: string;
+    loadStatus: string;
+    trailerWeight?: string;
+    currentFuelPrice: string;
+  };
   route?: {
     origin: string;
     destination: string;
@@ -526,13 +534,8 @@ const TripTracker: React.FC = () => {
 
   // Update the input change handler
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const value = e.target.value;
-    setFormData(prev => ({ ...prev, [e.target.name]: value }));
-    if (value.trim()) {
-      debouncedFetchSuggestions(value.trim());
-    } else {
-      setSuggestions([]);
-    }
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const calculateMPG = (startMiles: number, endMiles: number, fuelAmount: number): number => {
@@ -756,16 +759,46 @@ const TripTracker: React.FC = () => {
       routeInfo = await calculateRouteDetails(formData.origin, formData.destination, formData.isRoundTrip);
     }
 
+    // Calculate base MPG based on vehicle configuration
+    const baseMPG = truckDetails.vehicleClass === 'class1' || 
+                   truckDetails.vehicleClass === 'class2' || 
+                   truckDetails.vehicleClass === 'class3' || 
+                   truckDetails.vehicleClass === 'class4'
+      ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
+      : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
+    
+    // Adjust MPG based on trailer weight if towing
+    let mpgAdjustment = 1.0;
+    if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
+      const trailerWeight = parseFloat(truckDetails.trailerWeight);
+      mpgAdjustment *= (1 - (trailerWeight * 0.000001));
+    }
+    
+    const adjustedMPG = baseMPG * mpgAdjustment;
+    const distance = parseFloat(formData.distance) || 0;
+    const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice) || 0;
+    const fuelAmount = distance / adjustedMPG;
+    const fuelCost = fuelAmount * currentFuelPrice;
+    const costPerMile = currentFuelPrice / adjustedMPG;
+
     const newTrip: Trip = {
       id: Date.now().toString(),
       date: formData.date,
       startOdometer: 0,
       endOdometer: 0,
-      fuelAmount: parseFloat(formData.fuelAmount) || 0,
-      fuelCost: parseFloat(formData.fuelCost) || 0,
+      fuelAmount,
+      fuelCost,
       notes: '',
-      mpg: truckDetails.averageMPG ? parseFloat(truckDetails.averageMPG) : 0,
-      costPerMile: formData.distance ? (parseFloat(formData.fuelCost) / parseFloat(formData.distance)) : 0,
+      mpg: adjustedMPG,
+      costPerMile,
+      vehicleDetails: {
+        vehicleClass: truckDetails.vehicleClass,
+        wheelConfig: truckDetails.wheelConfig,
+        fuelType: truckDetails.fuelType,
+        loadStatus: truckDetails.loadStatus,
+        trailerWeight: truckDetails.trailerWeight,
+        currentFuelPrice: truckDetails.currentFuelPrice
+      },
       route: routeInfo ? {
         origin: formData.origin,
         destination: formData.destination,
@@ -838,11 +871,17 @@ const TripTracker: React.FC = () => {
 
   // Prepare data for the chart
   const chartData = useMemo(() => {
-    return sortedTrips.map(trip => ({
-      date: new Date(trip.date).toLocaleDateString(),
-      mpg: trip.mpg,
-      costPerMile: trip.costPerMile,
-    }));
+    return sortedTrips.map(trip => {
+      // Ensure we have valid numbers for MPG and cost per mile
+      const mpg = isNaN(trip.mpg) || !isFinite(trip.mpg) ? 0 : trip.mpg;
+      const costPerMile = isNaN(trip.costPerMile) || !isFinite(trip.costPerMile) ? 0 : trip.costPerMile;
+      
+      return {
+        date: new Date(trip.date).toLocaleDateString(),
+        mpg: Number(mpg.toFixed(1)),
+        costPerMile: Number(costPerMile.toFixed(3))
+      };
+    });
   }, [sortedTrips]);
 
   // Update the debounced fetch suggestions function
@@ -1144,34 +1183,24 @@ const TripTracker: React.FC = () => {
           }
         }}
       >
-        <Tabs
-          value={activeTab}
-          onChange={(_, newValue) => setActiveTab(newValue)}
-          centered
+        {/* Always visible fuel estimates section */}
+        <Paper 
+          elevation={0}
+          sx={{
+            p: 3,
+            mb: 3,
+            borderRadius: 4,
+            border: '1px solid',
+            borderColor: 'divider',
+            background: 'rgba(255, 255, 255, 0.8)',
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+          }}
         >
-          <Tab 
-            icon={<LocalGasStation />} 
-            label="Fuel Estimate" 
-            iconPosition="start"
-          />
-          <Tab 
-            icon={<Route />} 
-            label="Trip Details" 
-            iconPosition="start"
-          />
-          <Tab 
-            icon={<History />} 
-            label="Trip History" 
-            iconPosition="start"
-          />
-        </Tabs>
-
-        {activeTab === 0 && (
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+            Vehicle Specifications
+          </Typography>
           <Box sx={{ display: 'grid', gap: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Vehicle Specifications
-            </Typography>
-            
             <FormControl fullWidth>
               <InputLabel>Vehicle Type</InputLabel>
               <Select
@@ -1280,10 +1309,9 @@ const TripTracker: React.FC = () => {
                     setIsLoadingFuelPrice(true);
                     setFuelPriceError(null);
                     
-                    // EIA series IDs for national average prices
                     const seriesId = truckDetails.fuelType === 'gas' 
-                      ? 'PET.EMM_EPM0_PTE_NUS_DPG.W'  // Weekly U.S. All Grades All Formulations Retail Gasoline Prices
-                      : 'PET.EMD_EPD2D_PTE_NUS_DPG.W'; // Weekly U.S. No 2 Diesel Retail Prices
+                      ? 'PET.EMM_EPM0_PTE_NUS_DPG.W'
+                      : 'PET.EMD_EPD2D_PTE_NUS_DPG.W';
 
                     fetch(`${EIA_API_BASE_URL}/seriesid/${seriesId}?api_key=${EIA_API_KEY}`)
                       .then(response => {
@@ -1326,8 +1354,10 @@ const TripTracker: React.FC = () => {
                 {fuelPriceError}
               </Alert>
             )}
+          </Box>
 
-            <Box sx={{ mt: 2 }}>
+          <Box sx={{ mt: 4, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr' }, gap: 2 }}>
+            <Box>
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                 Estimated MPG
               </Typography>
@@ -1342,10 +1372,9 @@ const TripTracker: React.FC = () => {
                   
                   let mpgAdjustment = 1.0;
                   
-                  // Adjust for trailer weight if towing
                   if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
                     const trailerWeight = parseFloat(truckDetails.trailerWeight);
-                    mpgAdjustment *= (1 - (trailerWeight * 0.000001)); // 0.1% reduction per 1000 lbs
+                    mpgAdjustment *= (1 - (trailerWeight * 0.000001));
                   }
                   
                   const adjustedMPG = baseMPG * mpgAdjustment;
@@ -1354,7 +1383,7 @@ const TripTracker: React.FC = () => {
               </Typography>
             </Box>
 
-            <Box sx={{ mt: 2 }}>
+            <Box>
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                 Estimated Range
               </Typography>
@@ -1372,10 +1401,9 @@ const TripTracker: React.FC = () => {
                   
                   let mpgAdjustment = 1.0;
                   
-                  // Adjust for trailer weight if towing
                   if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
                     const trailerWeight = parseFloat(truckDetails.trailerWeight);
-                    mpgAdjustment *= (1 - (trailerWeight * 0.000001)); // 0.1% reduction per 1000 lbs
+                    mpgAdjustment *= (1 - (trailerWeight * 0.000001));
                   }
                   
                   const adjustedMPG = baseMPG * mpgAdjustment;
@@ -1384,7 +1412,7 @@ const TripTracker: React.FC = () => {
               </Typography>
             </Box>
 
-            <Box sx={{ mt: 2 }}>
+            <Box>
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                 Cost per Mile
               </Typography>
@@ -1402,10 +1430,9 @@ const TripTracker: React.FC = () => {
                   
                   let mpgAdjustment = 1.0;
                   
-                  // Adjust for trailer weight if towing
                   if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
                     const trailerWeight = parseFloat(truckDetails.trailerWeight);
-                    mpgAdjustment *= (1 - (trailerWeight * 0.000001)); // 0.1% reduction per 1000 lbs
+                    mpgAdjustment *= (1 - (trailerWeight * 0.000001));
                   }
                   
                   const adjustedMPG = baseMPG * mpgAdjustment;
@@ -1414,9 +1441,9 @@ const TripTracker: React.FC = () => {
               </Typography>
             </Box>
 
-            <Box sx={{ mt: 2 }}>
+            <Box>
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Total Fuel Tank Refill Cost
+                Tank Refill Cost
               </Typography>
               <Typography variant="h4" sx={{ color: 'primary.main' }}>
                 {(() => {
@@ -1429,31 +1456,48 @@ const TripTracker: React.FC = () => {
               </Typography>
             </Box>
           </Box>
-        )}
+        </Paper>
 
-        {activeTab === 1 && (
+        <Tabs
+          value={activeTab}
+          onChange={(_, newValue) => setActiveTab(newValue)}
+          centered
+          sx={{
+            mb: 3,
+            '& .MuiTabs-indicator': {
+              background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+              height: 3,
+              borderRadius: 1.5,
+            }
+          }}
+        >
+          <Tab 
+            icon={<Route />} 
+            label="Plan Trip" 
+            iconPosition="start"
+            sx={{
+              '&.Mui-selected': {
+                color: theme.palette.primary.main,
+                fontWeight: 600,
+              }
+            }}
+          />
+          <Tab 
+            icon={<History />} 
+            label="Trip History" 
+            iconPosition="start"
+            sx={{
+              '&.Mui-selected': {
+                color: theme.palette.primary.main,
+                fontWeight: 600,
+              }
+            }}
+          />
+        </Tabs>
+
+        {activeTab === 0 && (
           <Box component="form" onSubmit={handleSubmit} sx={{ display: 'grid', gap: 3 }}>
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr' }, gap: 3 }}>
-              <TextField
-                label="Date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => handleInputChange(e)}
-                InputLabelProps={{ shrink: true }}
-                inputProps={{
-                  min: new Date().toISOString().split('T')[0],
-                  max: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 2,
-                    background: 'rgba(255, 255, 255, 0.8)',
-                  }
-                }}
-              />
-            </Box>
-
-            {/* Route Planning Section */}
+            {/* Trip Planning Form */}
             <Paper 
               elevation={0} 
               sx={{ 
@@ -1467,44 +1511,61 @@ const TripTracker: React.FC = () => {
               }}
             >
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                Route Planning
+                Trip Details
               </Typography>
-              <Box sx={{ display: 'grid', gap: 2 }}>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  {renderAutocomplete('origin')}
-                  <Button
-                    variant="outlined"
-                    onClick={getCurrentLocation}
-                    sx={{ 
-                      minWidth: '56px',
-                      height: '56px',
-                      alignSelf: 'center'
-                    }}
-                    title="Use current location"
-                  >
-                    <MyLocation />
-                  </Button>
+              <Box sx={{ display: 'grid', gap: 3 }}>
+                <TextField
+                  name="date"
+                  label="Date"
+                  type="date"
+                  value={formData.date}
+                  onChange={handleInputChange}
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{
+                    min: new Date().toISOString().split('T')[0],
+                    max: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]
+                  }}
+                />
+
+                <Box sx={{ display: 'grid', gap: 2 }}>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    {renderAutocomplete('origin')}
+                    <Button
+                      variant="outlined"
+                      onClick={getCurrentLocation}
+                      sx={{ 
+                        minWidth: '56px',
+                        height: '56px',
+                        alignSelf: 'center'
+                      }}
+                      title="Use current location"
+                    >
+                      <MyLocation />
+                    </Button>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    {renderAutocomplete('destination')}
+                    <Button
+                      variant="outlined"
+                      onClick={getCurrentLocation}
+                      sx={{ 
+                        minWidth: '56px',
+                        height: '56px',
+                        alignSelf: 'center'
+                      }}
+                      title="Use current location"
+                    >
+                      <MyLocation />
+                    </Button>
+                  </Box>
                 </Box>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  {renderAutocomplete('destination')}
-                  <Button
-                    variant="outlined"
-                    onClick={getCurrentLocation}
-                    sx={{ 
-                      minWidth: '56px',
-                      height: '56px',
-                      alignSelf: 'center'
-                    }}
-                    title="Use current location"
-                  >
-                    <MyLocation />
-                  </Button>
-                </Box>
+
                 {routeError && (
                   <Alert severity="error" sx={{ mt: 2 }}>
                     {routeError}
                   </Alert>
                 )}
+
                 {(markers.origin || markers.destination) && (
                   <Box sx={{ height: 300, borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
                     <MapContainer
@@ -1543,27 +1604,93 @@ const TripTracker: React.FC = () => {
                     </MapContainer>
                   </Box>
                 )}
-              </Box>
-            </Paper>
 
-            {/* Trip Summary Card */}
-            {formData.origin && formData.destination && (
-              <Paper 
-                elevation={0} 
-                sx={{ 
-                  p: 3,
-                  borderRadius: 4,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  background: 'rgba(255, 255, 255, 0.8)',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-                }}
-              >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    Trip Summary
-                  </Typography>
+                {formData.origin && formData.destination && (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr' }, gap: 2 }}>
+                    <Box>
+                      <Typography variant="subtitle2" color="text.secondary">Total Miles</Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                        {formData.distance || '0.0'}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle2" color="text.secondary">Estimated Fuel Needed</Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                        {(() => {
+                          const distance = parseFloat(formData.distance) || 0;
+                          const baseMPG = truckDetails.vehicleClass === 'class1' || 
+                                       truckDetails.vehicleClass === 'class2' || 
+                                       truckDetails.vehicleClass === 'class3' || 
+                                       truckDetails.vehicleClass === 'class4'
+                            ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
+                            : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
+                          
+                          let mpgAdjustment = 1.0;
+                          
+                          if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
+                            const trailerWeight = parseFloat(truckDetails.trailerWeight);
+                            mpgAdjustment *= (1 - (trailerWeight * 0.000001));
+                          }
+                          
+                          const adjustedMPG = baseMPG * mpgAdjustment;
+                          return `${(distance / adjustedMPG).toFixed(1)} gal`;
+                        })()}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle2" color="text.secondary">Estimated Cost</Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                        {(() => {
+                          const distance = parseFloat(formData.distance) || 0;
+                          const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice) || 0;
+                          const baseMPG = truckDetails.vehicleClass === 'class1' || 
+                                       truckDetails.vehicleClass === 'class2' || 
+                                       truckDetails.vehicleClass === 'class3' || 
+                                       truckDetails.vehicleClass === 'class4'
+                            ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
+                            : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
+                          
+                          let mpgAdjustment = 1.0;
+                          
+                          if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
+                            const trailerWeight = parseFloat(truckDetails.trailerWeight);
+                            mpgAdjustment *= (1 - (trailerWeight * 0.000001));
+                          }
+                          
+                          const adjustedMPG = baseMPG * mpgAdjustment;
+                          const gallonsNeeded = distance / adjustedMPG;
+                          return `$${(gallonsNeeded * currentFuelPrice).toFixed(2)}`;
+                        })()}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle2" color="text.secondary">Cost per Mile</Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                        {(() => {
+                          const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice) || 0;
+                          const baseMPG = truckDetails.vehicleClass === 'class1' || 
+                                       truckDetails.vehicleClass === 'class2' || 
+                                       truckDetails.vehicleClass === 'class3' || 
+                                       truckDetails.vehicleClass === 'class4'
+                            ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
+                            : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
+                          
+                          let mpgAdjustment = 1.0;
+                          
+                          if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
+                            const trailerWeight = parseFloat(truckDetails.trailerWeight);
+                            mpgAdjustment *= (1 - (trailerWeight * 0.000001));
+                          }
+                          
+                          const adjustedMPG = baseMPG * mpgAdjustment;
+                          return `$${(currentFuelPrice / adjustedMPG).toFixed(2)}`;
+                        })()}
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <FormControlLabel
                     control={
                       <Checkbox
@@ -1576,305 +1703,41 @@ const TripTracker: React.FC = () => {
                     }
                     label="Round Trip"
                   />
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    size="large"
+                    disabled={!formData.date || !formData.origin || !formData.destination}
+                    sx={{
+                      py: 1.5,
+                      borderRadius: 2,
+                      textTransform: 'none',
+                      fontWeight: 700,
+                      fontSize: '1.1rem',
+                      background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                      boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        background: `linear-gradient(45deg, ${theme.palette.secondary.main}, ${theme.palette.primary.main})`,
+                        boxShadow: '0 8px 25px rgba(0,0,0,0.2)',
+                        transform: 'translateY(-2px)',
+                      },
+                      '&:active': {
+                        transform: 'translateY(0)',
+                      }
+                    }}
+                  >
+                    Add Trip
+                  </Button>
                 </Box>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr 1fr' }, gap: 2 }}>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Total Miles</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {formData.distance || '0.0'}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Estimated MPG</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {(() => {
-                        const baseMPG = truckDetails.vehicleClass === 'class1' || 
-                                     truckDetails.vehicleClass === 'class2' || 
-                                     truckDetails.vehicleClass === 'class3' || 
-                                     truckDetails.vehicleClass === 'class4'
-                          ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
-                          : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
-                        
-                        let mpgAdjustment = 1.0;
-                        
-                        // Adjust for trailer weight if towing
-                        if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-                          const trailerWeight = parseFloat(truckDetails.trailerWeight);
-                          mpgAdjustment *= (1 - (trailerWeight * 0.000001)); // 0.1% reduction per 1000 lbs
-                        }
-                        
-                        const adjustedMPG = baseMPG * mpgAdjustment;
-                        return `${adjustedMPG.toFixed(1)}`;
-                      })()}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Estimated Fuel Needed</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {(() => {
-                        const distance = parseFloat(formData.distance) || 0;
-                        const baseMPG = truckDetails.vehicleClass === 'class1' || 
-                                     truckDetails.vehicleClass === 'class2' || 
-                                     truckDetails.vehicleClass === 'class3' || 
-                                     truckDetails.vehicleClass === 'class4'
-                          ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
-                          : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
-                        
-                        let mpgAdjustment = 1.0;
-                        
-                        // Adjust for trailer weight if towing
-                        if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-                          const trailerWeight = parseFloat(truckDetails.trailerWeight);
-                          mpgAdjustment *= (1 - (trailerWeight * 0.000001)); // 0.1% reduction per 1000 lbs
-                        }
-                        
-                        const adjustedMPG = baseMPG * mpgAdjustment;
-                        return `${(distance / adjustedMPG).toFixed(1)} gal`;
-                      })()}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Estimated Cost</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {(() => {
-                        const distance = parseFloat(formData.distance) || 0;
-                        const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice) || 0;
-                        const baseMPG = truckDetails.vehicleClass === 'class1' || 
-                                     truckDetails.vehicleClass === 'class2' || 
-                                     truckDetails.vehicleClass === 'class3' || 
-                                     truckDetails.vehicleClass === 'class4'
-                          ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
-                          : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
-                        
-                        let mpgAdjustment = 1.0;
-                        
-                        // Adjust for trailer weight if towing
-                        if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-                          const trailerWeight = parseFloat(truckDetails.trailerWeight);
-                          mpgAdjustment *= (1 - (trailerWeight * 0.000001)); // 0.1% reduction per 1000 lbs
-                        }
-                        
-                        const adjustedMPG = baseMPG * mpgAdjustment;
-                        const gallonsNeeded = distance / adjustedMPG;
-                        return `$${(gallonsNeeded * currentFuelPrice).toFixed(2)}`;
-                      })()}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Cost per Mile</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {(() => {
-                        const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice) || 0;
-                        const baseMPG = truckDetails.vehicleClass === 'class1' || 
-                                     truckDetails.vehicleClass === 'class2' || 
-                                     truckDetails.vehicleClass === 'class3' || 
-                                     truckDetails.vehicleClass === 'class4'
-                          ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
-                          : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
-                        
-                        let mpgAdjustment = 1.0;
-                        
-                        // Adjust for trailer weight if towing
-                        if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-                          const trailerWeight = parseFloat(truckDetails.trailerWeight);
-                          mpgAdjustment *= (1 - (trailerWeight * 0.000001)); // 0.1% reduction per 1000 lbs
-                        }
-                        
-                        const adjustedMPG = baseMPG * mpgAdjustment;
-                        return `$${(currentFuelPrice / adjustedMPG).toFixed(2)}`;
-                      })()}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Paper>
-            )}
-
-            <Button
-              type="submit"
-              variant="contained"
-              size="large"
-              disabled={!formData.date || !formData.origin || !formData.destination}
-              sx={{
-                py: 1.5,
-                borderRadius: 2,
-                textTransform: 'none',
-                fontWeight: 700,
-                fontSize: '1.1rem',
-                background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  background: `linear-gradient(45deg, ${theme.palette.secondary.main}, ${theme.palette.primary.main})`,
-                  boxShadow: '0 8px 25px rgba(0,0,0,0.2)',
-                  transform: 'translateY(-2px)',
-                },
-                '&:active': {
-                  transform: 'translateY(0)',
-                }
-              }}
-            >
-              Add Trip
-            </Button>
+              </Box>
+            </Paper>
           </Box>
         )}
 
-        {activeTab === 2 && (
+        {activeTab === 1 && (
           <Box sx={{ mt: 4 }}>
-            {/* Total Statistics */}
-            <Paper 
-              elevation={0} 
-              sx={{ 
-                p: 3,
-                mb: 3,
-                borderRadius: 4,
-                border: '1px solid',
-                borderColor: 'divider',
-                background: 'rgba(255, 255, 255, 0.8)',
-                backdropFilter: 'blur(10px)',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-              }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                Total Statistics
-              </Typography>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 2 }}>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">Total Miles</Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                    {totalStats.totalMiles.toFixed(1)}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">Total Fuel Cost</Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                    ${totalStats.totalFuelCost.toFixed(2)}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">Total Fuel Used</Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                    {totalStats.totalFuelAmount.toFixed(1)} gal
-                  </Typography>
-                </Box>
-              </Box>
-            </Paper>
-
-            {/* Average Statistics */}
-            <Paper 
-              elevation={0} 
-              sx={{ 
-                p: 3,
-                mb: 3,
-                borderRadius: 4,
-                border: '1px solid',
-                borderColor: 'divider',
-                background: 'rgba(255, 255, 255, 0.8)',
-                backdropFilter: 'blur(10px)',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-              }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                Average Statistics
-              </Typography>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">Average MPG</Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                    {parseFloat(truckDetails.averageMPG).toFixed(1)} MPG
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">Average Cost per Mile</Typography>
-                  <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                    ${parseFloat(truckDetails.currentFuelPrice).toFixed(3)}
-                  </Typography>
-                </Box>
-              </Box>
-            </Paper>
-
-            {/* Chart */}
-            <Paper 
-              elevation={0} 
-              sx={{ 
-                p: 3,
-                mb: 3,
-                borderRadius: 4,
-                border: '1px solid',
-                borderColor: 'divider',
-                background: 'rgba(255, 255, 255, 0.8)',
-                backdropFilter: 'blur(10px)',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-                height: 300
-              }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                Fuel Economy Trend
-              </Typography>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis yAxisId="left" />
-                  <YAxis yAxisId="right" orientation="right" />
-                  <RechartsTooltip />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="mpg"
-                    stroke={theme.palette.primary.main}
-                    name="MPG"
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="costPerMile"
-                    stroke={theme.palette.secondary.main}
-                    name="Cost per Mile"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </Paper>
-
             {/* Trip History Table */}
-            <Typography 
-              variant="h5" 
-              component="h2" 
-              gutterBottom 
-              sx={{ 
-                fontWeight: 700,
-                color: 'text.primary',
-                mb: 3,
-                letterSpacing: '-0.5px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1
-              }}
-            >
-              Trip History
-            </Typography>
-
-            {/* Sorting Controls */}
-            <Box sx={{ mb: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
-              <FormControl size="small" sx={{ minWidth: 120 }}>
-                <InputLabel>Sort By</InputLabel>
-                <Select
-                  value={sortField}
-                  label="Sort By"
-                  onChange={(e) => setSortField(e.target.value as SortField)}
-                >
-                  <MenuItem value="date">Date</MenuItem>
-                  <MenuItem value="mpg">MPG</MenuItem>
-                  <MenuItem value="costPerMile">Cost per Mile</MenuItem>
-                  <MenuItem value="miles">Miles</MenuItem>
-                </Select>
-              </FormControl>
-              <Tooltip title={sortOrder === 'asc' ? 'Sort Ascending' : 'Sort Descending'}>
-                <IconButton onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}>
-                  {sortOrder === 'asc' ? <ArrowUpward /> : <ArrowDownward />}
-                </IconButton>
-              </Tooltip>
-            </Box>
-
             <Paper 
               elevation={0} 
               sx={{ 
@@ -1887,6 +1750,32 @@ const TripTracker: React.FC = () => {
                 boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
               }}
             >
+              <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  Trip History
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                    <InputLabel>Sort By</InputLabel>
+                    <Select
+                      value={sortField}
+                      label="Sort By"
+                      onChange={(e) => setSortField(e.target.value as SortField)}
+                    >
+                      <MenuItem value="date">Date</MenuItem>
+                      <MenuItem value="mpg">MPG</MenuItem>
+                      <MenuItem value="costPerMile">Cost per Mile</MenuItem>
+                      <MenuItem value="miles">Miles</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <Tooltip title={sortOrder === 'asc' ? 'Sort Ascending' : 'Sort Descending'}>
+                    <IconButton onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}>
+                      {sortOrder === 'asc' ? <ArrowUpward /> : <ArrowDownward />}
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              </Box>
+
               <Table>
                 <TableHead>
                   <TableRow>
@@ -1911,6 +1800,12 @@ const TripTracker: React.FC = () => {
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
                               {trip.route.distance.toFixed(1)} miles • {trip.route.duration}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              Vehicle: {trip.vehicleDetails.vehicleClass.replace('class', 'Class ').toUpperCase()}
+                              {trip.vehicleDetails.wheelConfig ? ` (${trip.vehicleDetails.wheelConfig.toUpperCase()})` : ''}
+                              {trip.vehicleDetails.loadStatus === 'towing' && trip.vehicleDetails.trailerWeight ? 
+                                ` • Towing ${trip.vehicleDetails.trailerWeight} lbs` : ''}
                             </Typography>
                           </Box>
                         ) : (
@@ -1937,6 +1832,101 @@ const TripTracker: React.FC = () => {
                 </TableBody>
               </Table>
             </Paper>
+
+            {/* Statistics and Chart */}
+            <Box sx={{ mt: 4, display: 'grid', gap: 3 }}>
+              <Paper 
+                elevation={0} 
+                sx={{ 
+                  p: 3,
+                  borderRadius: 4,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  background: 'rgba(255, 255, 255, 0.8)',
+                  backdropFilter: 'blur(10px)',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+                }}
+              >
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                  Trip Statistics
+                </Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr' }, gap: 2 }}>
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary">Total Miles</Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                      {totalStats.totalMiles.toFixed(1)}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary">Total Fuel Cost</Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                      ${totalStats.totalFuelCost.toFixed(2)}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary">Total Fuel Used</Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                      {totalStats.totalFuelAmount.toFixed(1)} gal
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary">Average MPG</Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                      {averageStats.mpg.toFixed(1)} MPG
+                    </Typography>
+                  </Box>
+                </Box>
+              </Paper>
+
+              <Paper 
+                elevation={0} 
+                sx={{ 
+                  p: 3,
+                  borderRadius: 4,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  background: 'rgba(255, 255, 255, 0.8)',
+                  backdropFilter: 'blur(10px)',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+                  height: 300
+                }}
+              >
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                  Fuel Economy Trend
+                </Typography>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis yAxisId="left" />
+                    <YAxis yAxisId="right" orientation="right" />
+                    <RechartsTooltip 
+                      formatter={(value: number, name: string) => {
+                        if (name === 'MPG') {
+                          return [`${value.toFixed(1)} MPG`, name];
+                        } else {
+                          return [`$${value.toFixed(3)}`, name];
+                        }
+                      }}
+                    />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="mpg"
+                      stroke={theme.palette.primary.main}
+                      name="MPG"
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="costPerMile"
+                      stroke={theme.palette.secondary.main}
+                      name="Cost per Mile"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </Paper>
+            </Box>
           </Box>
         )}
       </Paper>
