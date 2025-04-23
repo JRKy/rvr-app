@@ -109,7 +109,7 @@ interface TruckDetails {
   vehicleClass: 'class1' | 'class2' | 'class3' | 'class4' | 'classA' | 'classB' | 'classBPlus' | 'classC' | 'superC';
   wheelConfig: 'srw' | 'drw';
   loadStatus: 'empty' | 'loaded' | 'towing';
-  trailerWeight?: string; // in pounds
+  trailerWeight: string;
   currentFuelPrice: string;
   averageMPG: string;
 }
@@ -138,42 +138,20 @@ const DEFAULT_FUEL_PRICES = {
 
 const EIA_API_BASE_URL = 'https://api.eia.gov/v2';
 const EIA_API_KEY = import.meta.env.VITE_EIA_API_KEY;
-
-const OPENROUTE_API_URL = 'https://api.openrouteservice.org';
+const NOMINATIM_API_URL = 'https://nominatim.openstreetmap.org';
 const API_BASE_URL = '/api';
 const CORS_PROXY = 'https://corsproxy.io/?';
 const CORS_KEY = import.meta.env.VITE_CORS_KEY;
 
-interface RouteSegment {
-  distance: number;
-  duration: number;
-  steps: Array<{
-    distance: number;
-    duration: number;
-    type: number;
-    instruction: string;
-    name: string;
-    way_points: [number, number];
-  }>;
-  elevation: number[];
-}
+// Add rate limiting constants
+const RATE_LIMIT_DELAY = 1000; // 1 second between requests
+const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
-interface OpenRouteResponse {
-  routes: Array<{
-    segments: RouteSegment[];
-    summary: {
-      distance: number;
-      duration: number;
-      ascent: number;
-      descent: number;
-    };
-    geometry: {
-      coordinates: [number, number][];
-    };
-  }>;
-  error?: {
-    code: number;
-    message: string;
+// Add cache interface
+interface GeocodeCache {
+  [key: string]: {
+    coordinates: [number, number];
+    timestamp: number;
   };
 }
 
@@ -181,26 +159,6 @@ interface ElevationData {
   elevation: number;
   distance: number;
 }
-
-const MapUpdater = ({ center }: { center: [number, number] }) => {
-  const map = useMap();
-  useEffect(() => {
-    map.setView(center, map.getZoom());
-  }, [center, map]);
-  return null;
-};
-
-// Add debounce utility
-const debounce = <T extends (...args: any[]) => any>(
-  func: T,
-  wait: number
-): ((...args: Parameters<T>) => void) => {
-  let timeout: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-};
 
 // Base MPG values for different vehicle configurations
 const BASE_MPG = {
@@ -372,6 +330,35 @@ const BASE_MPG = {
   }
 };
 
+// Add debounce utility
+const debounce = <T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): ((...args: Parameters<T>) => void) => {
+  let timeout: NodeJS.Timeout;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+};
+
+// Add MapUpdater component
+const MapUpdater = ({ center }: { center: [number, number] }) => {
+  const map = useMap();
+  
+  useEffect(() => {
+    map.setView(center, map.getZoom());
+  }, [center, map]);
+
+  return null;
+};
+
+// Add type for the BASE_MPG indexing
+type VehicleClass = 'class1' | 'class2' | 'class3' | 'class4' | 'classA' | 'classB' | 'classBPlus' | 'classC' | 'superC';
+type WheelConfig = 'srw' | 'drw';
+type FuelType = 'gas' | 'diesel';
+type LoadStatus = 'empty' | 'loaded' | 'towing';
+
 const TripTracker: React.FC = () => {
   const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
@@ -381,6 +368,7 @@ const TripTracker: React.FC = () => {
     vehicleClass: 'class1',
     wheelConfig: 'srw',
     loadStatus: 'empty',
+    trailerWeight: '',
     currentFuelPrice: DEFAULT_FUEL_PRICES.gas.toString(),
     averageMPG: '',
   });
@@ -416,6 +404,8 @@ const TripTracker: React.FC = () => {
   const [errors, setErrors] = useState<FormErrors>({});
   const [originCoordinates, setOriginCoordinates] = useState<[number, number] | null>(null);
   const [destinationCoordinates, setDestinationCoordinates] = useState<[number, number] | null>(null);
+  const [lastRequestTime, setLastRequestTime] = useState<number>(0);
+  const [geocodeCache, setGeocodeCache] = useState<GeocodeCache>({});
 
   // Add cache for recent searches
   const searchCache = useRef<Map<string, Location[]>>(new Map());
@@ -430,15 +420,12 @@ const TripTracker: React.FC = () => {
 
       // Test with a simple geocoding request
       const testLocation = 'New York, NY';
-      const targetUrl = `${OPENROUTE_API_URL}/geocode/search?api_key=${apiKey}&text=${encodeURIComponent(testLocation)}&layers=address,street,venue&size=1&boundary.country=US`;
+      const targetUrl = `${NOMINATIM_API_URL}/search?format=json&q=${encodeURIComponent(testLocation)}&limit=1&countrycodes=us`;
 
       console.log('Testing API connection with URL:', targetUrl);
       
       const response = await fetch(targetUrl, {
-        method: 'GET',
         headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
           'User-Agent': 'RVR-App/1.0'
         }
       });
@@ -466,62 +453,120 @@ const TripTracker: React.FC = () => {
     testApiConnection().catch(console.error);
   }, []);
 
+  // Update the renderAutocomplete function
+  const renderAutocomplete = (type: 'origin' | 'destination') => (
+    <Autocomplete<Location | string>
+      value={formData[type] ? suggestions.find(opt => opt.value === formData[type]) || null : null}
+      onChange={(_, newValue) => {
+        if (newValue && typeof newValue !== 'string') {
+          handleLocationSelect(newValue, type);
+        }
+      }}
+      onInputChange={(_, newInputValue) => {
+        setFormData(prev => ({ ...prev, [type]: newInputValue }));
+        debouncedFetchSuggestions(newInputValue);
+      }}
+      options={suggestions}
+      getOptionLabel={(option) => {
+        if (typeof option === 'string') return option;
+        return option?.label || '';
+      }}
+      isOptionEqualToValue={(option, value) => {
+        if (!option || !value) return false;
+        if (typeof option === 'string' && typeof value === 'string') {
+          return option === value;
+        }
+        if (typeof option === 'object' && typeof value === 'object') {
+          return option.value === value.value;
+        }
+        return false;
+      }}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          label={type === 'origin' ? 'Starting Location' : 'Destination'}
+          fullWidth
+          required
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              height: '64px',
+              fontSize: '1.2rem',
+              '& input': {
+                padding: '8px 14px',
+                height: '48px',
+                fontSize: '1.2rem'
+              },
+              '& .MuiOutlinedInput-notchedOutline': {
+                borderWidth: '2px',
+                borderRadius: 2
+              }
+            },
+            '& .MuiInputLabel-root': {
+              fontSize: '1.2rem',
+              '&.MuiInputLabel-shrink': {
+                transform: 'translate(14px, -9px) scale(0.75)'
+              }
+            },
+            '& .MuiAutocomplete-endAdornment': {
+              top: 'calc(50% - 16px)'
+            }
+          }}
+        />
+      )}
+      filterOptions={(options) => options}
+      filterSelectedOptions={false}
+      blurOnSelect={false}
+      clearOnBlur={false}
+      ListboxProps={{
+        sx: { 
+          fontSize: '1.2rem',
+          '& li': {
+            padding: '12px 16px'
+          }
+        }
+      }}
+    />
+  );
+
+  // Update the BASE_MPG calculation
+  const getBaseMPG = (vehicleClass: VehicleClass, wheelConfig: WheelConfig | undefined, fuelType: FuelType, loadStatus: LoadStatus): number => {
+    if (vehicleClass === 'class1' || vehicleClass === 'class2' || vehicleClass === 'class3' || vehicleClass === 'class4') {
+      return wheelConfig ? BASE_MPG[vehicleClass][wheelConfig][fuelType][loadStatus] : 0;
+    } else {
+      return BASE_MPG[vehicleClass][fuelType][loadStatus];
+    }
+  };
+
   const handleTruckDetailsChange = (field: keyof TruckDetails, value: string) => {
     setTruckDetails(prev => {
-      const newDetails = { ...prev, [field]: value };
+      const newDetails = { ...prev };
       
-      // When fuel type changes, automatically fetch the latest price
-      if (field === 'fuelType') {
-        setIsLoadingFuelPrice(true);
-        setFuelPriceError(null);
-        
-        // EIA series IDs for national average prices
-        const seriesId = value === 'gas' 
-          ? 'PET.EMM_EPM0_PTE_NUS_DPG.W'  // Weekly U.S. All Grades All Formulations Retail Gasoline Prices
-          : 'PET.EMD_EPD2D_PTE_NUS_DPG.W'; // Weekly U.S. No 2 Diesel Retail Prices
-
-        fetch(`${EIA_API_BASE_URL}/seriesid/${seriesId}?api_key=${EIA_API_KEY}`)
-          .then(response => {
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-          })
-          .then(data => {
-            if (data.response?.data?.[0]?.value) {
-              const price = data.response.data[0].value;
-              newDetails.currentFuelPrice = price.toString();
-              setPriceSource('EIA');
-            } else {
-              throw new Error('No price data available');
-            }
-          })
-          .catch(error => {
-            console.error('Error fetching fuel price:', error);
-            setFuelPriceError('Failed to fetch current fuel price. Using default value.');
-            newDetails.currentFuelPrice = DEFAULT_FUEL_PRICES[value as 'gas' | 'diesel'].toString();
-            setPriceSource('default');
-          })
-          .finally(() => {
-            setIsLoadingFuelPrice(false);
-          });
+      // Update the field value
+      if (field === 'trailerWeight' || field === 'fuelTankSize' || field === 'currentFuelPrice') {
+        newDetails[field] = value;
+      } else if (field === 'fuelType') {
+        newDetails.fuelType = value as 'gas' | 'diesel';
+      } else if (field === 'vehicleClass') {
+        newDetails.vehicleClass = value as TruckDetails['vehicleClass'];
+      } else if (field === 'wheelConfig') {
+        newDetails.wheelConfig = value as 'srw' | 'drw';
+      } else if (field === 'loadStatus') {
+        newDetails.loadStatus = value as 'empty' | 'loaded' | 'towing';
       }
       
-      // Calculate and update average MPG when relevant fields change
-      if (['vehicleClass', 'wheelConfig', 'fuelType', 'loadStatus', 'trailerWeight'].includes(field)) {
-        const baseMPG = newDetails.vehicleClass === 'class1' || 
-                       newDetails.vehicleClass === 'class2' || 
-                       newDetails.vehicleClass === 'class3' || 
-                       newDetails.vehicleClass === 'class4'
-          ? BASE_MPG[newDetails.vehicleClass][newDetails.wheelConfig][newDetails.fuelType][newDetails.loadStatus]
-          : BASE_MPG[newDetails.vehicleClass][newDetails.fuelType][newDetails.loadStatus];
+      if (['vehicleClass', 'wheelConfig', 'fuelType', 'loadStatus'].includes(field)) {
+        const baseMPG = getBaseMPG(
+          newDetails.vehicleClass,
+          newDetails.wheelConfig,
+          newDetails.fuelType,
+          newDetails.loadStatus
+        );
         
         let mpgAdjustment = 1.0;
         
-        // Adjust for trailer weight if towing
         if (newDetails.loadStatus === 'towing' && newDetails.trailerWeight) {
           const trailerWeight = parseFloat(newDetails.trailerWeight);
-          mpgAdjustment *= (1 - (trailerWeight * 0.000001)); // 0.1% reduction per 1000 lbs
+          mpgAdjustment *= (1 - (trailerWeight * 0.000001));
         }
         
         const adjustedMPG = baseMPG * mpgAdjustment;
@@ -549,38 +594,51 @@ const TripTracker: React.FC = () => {
 
   const geocodeLocation = async (location: string): Promise<[number, number] | null> => {
     try {
-      const apiKey = import.meta.env.VITE_OPENROUTE_API_KEY;
-      if (!apiKey) {
-        throw new Error('OpenRouteService API key is missing');
+      // Check cache first
+      const cachedResult = geocodeCache[location];
+      if (cachedResult && Date.now() - cachedResult.timestamp < CACHE_EXPIRY) {
+        return cachedResult.coordinates;
       }
 
-      const targetUrl = `${OPENROUTE_API_URL}/geocode/search?api_key=${apiKey}&text=${encodeURIComponent(location)}&layers=address,street,venue&size=1&boundary.country=US`;
+      // Implement rate limiting
+      const now = Date.now();
+      const timeSinceLastRequest = now - lastRequestTime;
+      if (timeSinceLastRequest < RATE_LIMIT_DELAY) {
+        await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY - timeSinceLastRequest));
+      }
+      setLastRequestTime(Date.now());
 
-      const response = await fetch(targetUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'RVR-App/1.0'
+      const response = await fetch(
+        `${NOMINATIM_API_URL}/search?format=json&q=${encodeURIComponent(location)}&limit=1&countrycodes=us`,
+        {
+          headers: {
+            'User-Agent': 'RVR-App/1.0'
+          }
         }
-      });
+      );
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Geocoding API error:', errorText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      
-      if (data?.features?.length > 0) {
-        const [lon, lat] = data.features[0].geometry.coordinates;
-        return [lat, lon];
+      if (data && data.length > 0) {
+        const coordinates: [number, number] = [parseFloat(data[0].lon), parseFloat(data[0].lat)];
+        
+        // Update cache
+        setGeocodeCache(prev => ({
+          ...prev,
+          [location]: {
+            coordinates,
+            timestamp: Date.now()
+          }
+        }));
+        
+        return coordinates;
       }
-      
       return null;
     } catch (error) {
-      console.error('Geocoding error:', error);
+      console.error('Error geocoding location:', error);
       return null;
     }
   };
@@ -611,6 +669,7 @@ const TripTracker: React.FC = () => {
 
   const calculateRouteDetails = async (origin: string, destination: string, isRoundTrip: boolean) => {
     try {
+      console.log('Calculating route from', origin, 'to', destination);
       setRouteLoading(true);
       setRouteError(null);
 
@@ -619,51 +678,45 @@ const TripTracker: React.FC = () => {
         geocodeLocation(destination)
       ]);
 
+      console.log('Geocoded coordinates:', { origin: originCoords, destination: destCoords });
+
       if (!originCoords || !destCoords) {
         throw new Error('Could not find one or both locations');
       }
 
-      // Get the road route using OSRM
-      const [lat1, lon1] = originCoords;
-      const [lat2, lon2] = destCoords;
+      // Use OSRM's public API for routing
+      const routeUrl = `https://router.project-osrm.org/route/v1/driving/${originCoords[0]},${originCoords[1]};${destCoords[0]},${destCoords[1]}?overview=full&geometries=geojson`;
+      console.log('OSRM URL:', routeUrl);
       
-      // Use OSRM's route service
-      const routeUrl = `https://router.project-osrm.org/route/v1/driving/${lon1},${lat1};${lon2},${lat2}?overview=full&geometries=geojson`;
-      console.log('Calculating route with OSRM URL:', routeUrl);
-      
-      const response = await fetch(routeUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-
+      const response = await fetch(routeUrl);
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('OSRM Error Response:', errorText);
-        throw new Error(`Failed to calculate route. Status: ${response.status}`);
+        console.error('OSRM Error:', errorText);
+        throw new Error('Failed to calculate route');
       }
 
       const data = await response.json();
-      console.log('OSRM Route data:', data);
+      console.log('OSRM Response:', data);
       
-      if (!data || typeof data !== 'object' || !data.routes || !Array.isArray(data.routes) || data.routes.length === 0) {
-        throw new Error('Invalid response from OSRM');
+      if (!data.routes || !data.routes[0]) {
+        throw new Error('No route found');
       }
 
       const route = data.routes[0];
-      const oneWayDistance = route.distance * 0.000621371; // Convert meters to miles
+      const oneWayDistance = route.distance / 1000 * 0.621371; // Convert meters to miles
       const totalDistance = isRoundTrip ? oneWayDistance * 2 : oneWayDistance;
+      const duration = route.duration;
+
+      console.log('Route details:', { oneWayDistance, totalDistance, duration });
 
       // Convert route coordinates to [lat, lon] format for Leaflet
       const routeCoordinates = route.geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
-      console.log('Route coordinates:', routeCoordinates);
+      console.log('Route coordinates:', routeCoordinates.length, 'points');
 
-      // Update markers with correct coordinates
+      // Update markers and map center
       setMarkers({
-        origin: [lat1, lon1],
-        destination: [lat2, lon2],
+        origin: [originCoords[1], originCoords[0]],
+        destination: [destCoords[1], destCoords[0]],
         route: routeCoordinates
       });
 
@@ -673,7 +726,7 @@ const TripTracker: React.FC = () => {
           [Math.min(acc[0][0], coord[0]), Math.min(acc[0][1], coord[1])],
           [Math.max(acc[1][0], coord[0]), Math.max(acc[1][1], coord[1])]
         ];
-      }, [[lat1, lon1], [lat2, lon2]]);
+      }, [[originCoords[1], originCoords[0]], [destCoords[1], destCoords[0]]]);
 
       // Center map on the route
       const centerLat = (bounds[0][0] + bounds[1][0]) / 2;
@@ -681,30 +734,19 @@ const TripTracker: React.FC = () => {
       setMapCenter([centerLat, centerLon]);
 
       // Calculate base MPG based on vehicle configuration
-      const baseMPG = truckDetails.vehicleClass === 'class1' || 
-                     truckDetails.vehicleClass === 'class2' || 
-                     truckDetails.vehicleClass === 'class3' || 
-                     truckDetails.vehicleClass === 'class4'
-        ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
-        : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
+      const baseMPG = getBaseMPG(
+        truckDetails.vehicleClass,
+        truckDetails.wheelConfig,
+        truckDetails.fuelType,
+        truckDetails.loadStatus
+      );
       
       // Adjust MPG based on route characteristics
       let mpgAdjustment = 1.0;
       
-      // Adjust for road types
-      const highwayPercentage = route.legs[0].steps.reduce((acc: number, step: any) => {
-        const isHighway = step.maneuver.type.includes('motorway') || 
-                         step.maneuver.type.includes('trunk') || 
-                         step.maneuver.type.includes('primary');
-        return acc + (isHighway ? 1 : 0);
-      }, 0) / route.legs[0].steps.length;
-
-      // Better MPG on highways
-      mpgAdjustment *= (1 + (highwayPercentage * 0.1));
-
       // Additional adjustment for towing weight
       if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-        const trailerWeight = parseFloat(truckDetails.trailerWeight);
+        const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
         mpgAdjustment *= (1 - (trailerWeight * 0.000001));
       }
 
@@ -713,9 +755,8 @@ const TripTracker: React.FC = () => {
 
       // Calculate fuel usage and cost
       const gallonsNeeded = totalDistance / estimatedMPG;
-      const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice) || 0;
+      const currentFuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
       const fuelCost = gallonsNeeded * currentFuelPrice;
-      const costPerMile = currentFuelPrice / estimatedMPG;
 
       // Update form data with calculated values
       setFormData(prev => ({
@@ -730,99 +771,351 @@ const TripTracker: React.FC = () => {
       return {
         distance: totalDistance,
         oneWayDistance,
-        duration: `${Math.floor(route.duration / 3600)}h ${Math.round((route.duration % 3600) / 60)}m`,
+        duration: `${Math.floor(duration / 3600)}h ${Math.round((duration % 3600) / 60)}m`,
         coordinates: {
-          origin: [lat1, lon1] as [number, number],
-          destination: [lat2, lon2] as [number, number]
+          origin: [originCoords[1], originCoords[0]] as [number, number],
+          destination: [destCoords[1], destCoords[0]] as [number, number]
         },
-        routeGeometry: {
-          type: "LineString",
-          coordinates: route.geometry.coordinates
-        },
+        routeGeometry: route.geometry,
         estimatedMPG
       };
+
     } catch (error) {
       console.error('Error calculating route:', error);
-      setRouteError(error instanceof Error ? error.message : 'Failed to calculate route. Please check your locations and try again.');
+      setRouteError(error instanceof Error ? error.message : 'Failed to calculate route');
       return null;
     } finally {
       setRouteLoading(false);
     }
   };
 
+  // Update the debounced fetch suggestions function
+  const debouncedFetchSuggestions = useCallback(
+    debounce(async (input: string) => {
+      if (!input.trim()) {
+        setSuggestions([]);
+        return;
+      }
+
+      const MAX_RETRIES = 3;
+      const RETRY_DELAY = 1000; // 1 second between retries
+      const RATE_LIMIT_DELAY = 1000; // 1 second between requests
+
+      let retryCount = 0;
+      let lastRequestTime = 0;
+
+      const fetchWithRetry = async (): Promise<Location[]> => {
+        try {
+          // Implement rate limiting
+          const now = Date.now();
+          const timeSinceLastRequest = now - lastRequestTime;
+          if (timeSinceLastRequest < RATE_LIMIT_DELAY) {
+            await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY - timeSinceLastRequest));
+          }
+          lastRequestTime = Date.now();
+
+          const response = await fetch(
+            `${NOMINATIM_API_URL}/search?format=json&q=${encodeURIComponent(input)}&limit=5&countrycodes=us`,
+            {
+              headers: {
+                'User-Agent': 'RVR-App/1.0'
+              }
+            }
+          );
+
+          if (!response.ok) {
+            if (response.status === 503 && retryCount < MAX_RETRIES) {
+              retryCount++;
+              await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * retryCount));
+              return fetchWithRetry();
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          if (data && data.length > 0) {
+            // Create a map to track unique locations
+            const uniqueLocations = new Map<string, Location>();
+            
+            data.forEach((feature: any) => {
+              const key = `${feature.display_name}-${feature.lat}-${feature.lon}`;
+              if (!uniqueLocations.has(key)) {
+                uniqueLocations.set(key, {
+                  label: feature.display_name,
+                  value: feature.display_name,
+                  coordinates: [parseFloat(feature.lon), parseFloat(feature.lat)]
+                });
+              }
+            });
+            
+            return Array.from(uniqueLocations.values());
+          }
+          return [];
+        } catch (error) {
+          console.error('Error fetching suggestions:', error);
+          if (retryCount < MAX_RETRIES) {
+            retryCount++;
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * retryCount));
+            return fetchWithRetry();
+          }
+          return [];
+        }
+      };
+
+      try {
+        const formattedSuggestions = await fetchWithRetry();
+        setSuggestions(formattedSuggestions);
+      } catch (error) {
+        console.error('Error in debouncedFetchSuggestions:', error);
+        setSuggestions([]);
+      }
+    }, 300),
+    []
+  );
+
+  // Add current location function
+  const getCurrentLocation = (type: 'origin' | 'destination') => {
+    if (!navigator.geolocation) {
+      setErrors(prev => ({
+        ...prev,
+        [type]: 'Geolocation is not supported by your browser'
+      }));
+      return;
+    }
+
+    setRouteLoading(true);
+    setRouteError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const response = await fetch(
+            `${NOMINATIM_API_URL}/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}&zoom=18&addressdetails=1`,
+            {
+              headers: {
+                'User-Agent': 'RVR-App/1.0'
+              }
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          if (data) {
+            // Create location object with correct coordinate order [lat, lon]
+            const location: Location = {
+              label: data.display_name,
+              value: data.display_name,
+              coordinates: [parseFloat(data.lat), parseFloat(data.lon)] // Note: [lat, lon] order
+            };
+            
+            // Update form data
+            setFormData(prev => ({
+              ...prev,
+              [type]: location.value
+            }));
+            
+            // Update markers with correct coordinate order
+            setMarkers(prev => ({
+              ...prev,
+              [type]: [parseFloat(data.lat), parseFloat(data.lon)] // Note: [lat, lon] order
+            }));
+            
+            // Update map center
+            setMapCenter([parseFloat(data.lat), parseFloat(data.lon)]); // Note: [lat, lon] order
+            
+            // Update suggestions to include the current location
+            setSuggestions(prev => {
+              const existing = prev.find(s => s.value === location.value);
+              if (!existing) {
+                return [...prev, location];
+              }
+              return prev;
+            });
+            
+            // Only calculate route if both locations are set and different
+            const otherLocation = type === 'origin' ? formData.destination : formData.origin;
+            if (otherLocation && otherLocation !== location.value) {
+              calculateRouteDetails(
+                type === 'origin' ? location.value : otherLocation,
+                type === 'destination' ? location.value : otherLocation,
+                formData.isRoundTrip
+              );
+            }
+          }
+        } catch (error) {
+          console.error('Error getting current location:', error);
+          setErrors(prev => ({
+            ...prev,
+            [type]: 'Could not determine your location. Please enter it manually.'
+          }));
+        } finally {
+          setRouteLoading(false);
+        }
+      },
+      (error) => {
+        console.error('Error getting current location:', error);
+        let errorMessage = 'Could not determine your location.';
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Location access was denied. Please enable location services and try again.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Location information is unavailable. Please check your connection and try again.';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Location request timed out. Please try again.';
+            break;
+        }
+        
+        setErrors(prev => ({
+          ...prev,
+          [type]: errorMessage
+        }));
+        setRouteLoading(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  };
+
+  // Function to handle location selection
+  const handleLocationSelect = async (
+    location: Location | null,
+    type: 'origin' | 'destination'
+  ) => {
+    if (!location) return;
+
+    try {
+      const coordinates = await geocodeLocation(location.value);
+      if (coordinates) {
+        setMarkers(prev => ({
+          ...prev,
+          [type]: {
+            position: coordinates,
+            label: location.label
+          }
+        }));
+        setFormData(prev => ({
+          ...prev,
+          [type]: location.value
+        }));
+
+        // Only calculate route if both locations are selected and they are different
+        const otherLocation = type === 'origin' ? formData.destination : formData.origin;
+        if (otherLocation && otherLocation !== location.value) {
+          calculateRouteDetails(
+            type === 'origin' ? location.value : otherLocation,
+            type === 'destination' ? location.value : otherLocation,
+            formData.isRoundTrip
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error handling location select:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    let routeInfo = null;
-    if (formData.origin && formData.destination) {
-      routeInfo = await calculateRouteDetails(formData.origin, formData.destination, formData.isRoundTrip);
+    if (!formData.origin || !formData.destination || !formData.date) {
+      setErrors({ origin: 'Please fill in all required fields', destination: 'Please fill in all required fields' });
+      return;
     }
 
-    // Calculate base MPG based on vehicle configuration
-    const baseMPG = truckDetails.vehicleClass === 'class1' || 
-                   truckDetails.vehicleClass === 'class2' || 
-                   truckDetails.vehicleClass === 'class3' || 
-                   truckDetails.vehicleClass === 'class4'
-      ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
-      : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
-    
-    // Adjust MPG based on trailer weight if towing
-    let mpgAdjustment = 1.0;
-    if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-      const trailerWeight = parseFloat(truckDetails.trailerWeight);
-      mpgAdjustment *= (1 - (trailerWeight * 0.000001));
-    }
-    
-    const adjustedMPG = baseMPG * mpgAdjustment;
-    const distance = parseFloat(formData.distance) || 0;
-    const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice) || 0;
-    const fuelAmount = distance / adjustedMPG;
-    const fuelCost = fuelAmount * currentFuelPrice;
-    const costPerMile = currentFuelPrice / adjustedMPG;
+    try {
+      setRouteLoading(true);
+      setRouteError(null);
 
-    const newTrip: Trip = {
-      id: Date.now().toString(),
-      date: formData.date,
-      startOdometer: 0,
-      endOdometer: 0,
-      fuelAmount,
-      fuelCost,
-      notes: '',
-      mpg: adjustedMPG,
-      costPerMile,
-      vehicleDetails: {
-        vehicleClass: truckDetails.vehicleClass,
-        wheelConfig: truckDetails.wheelConfig,
-        fuelType: truckDetails.fuelType,
-        loadStatus: truckDetails.loadStatus,
-        trailerWeight: truckDetails.trailerWeight,
-        currentFuelPrice: truckDetails.currentFuelPrice
-      },
-      route: routeInfo ? {
-        origin: formData.origin,
-        destination: formData.destination,
-        distance: routeInfo.distance,
-        oneWayDistance: routeInfo.oneWayDistance,
-        duration: routeInfo.duration,
-        coordinates: routeInfo.coordinates,
-        routeGeometry: routeInfo.routeGeometry,
-        isRoundTrip: formData.isRoundTrip,
-      } : undefined
-    };
-    
-    setTrips(prev => [...prev, newTrip]);
-    setFormData({
-      date: '',
-      origin: '',
-      destination: '',
-      distance: '',
-      isRoundTrip: false,
-      elevation: null,
-      estimatedMPG: '',
-      fuelAmount: '',
-      fuelCost: '',
-    });
-    setMarkers({});
+      // Calculate route details
+      const routeDetails = await calculateRouteDetails(formData.origin, formData.destination, formData.isRoundTrip);
+      
+      if (!routeDetails) {
+        throw new Error('Could not calculate route details');
+      }
+
+      // Calculate base MPG based on vehicle configuration
+      const baseMPG = getBaseMPG(
+        truckDetails.vehicleClass,
+        truckDetails.wheelConfig,
+        truckDetails.fuelType,
+        truckDetails.loadStatus
+      );
+
+      // Calculate MPG adjustment for trailer weight if towing
+      let mpgAdjustment = 1;
+      if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
+        const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
+        mpgAdjustment = Math.max(0, 1 - (trailerWeight / 10000)); // Adjust MPG based on trailer weight
+      }
+
+      // Calculate adjusted MPG
+      const adjustedMPG = baseMPG * mpgAdjustment;
+
+      // Calculate fuel amount and cost
+      const fuelAmount = routeDetails.distance / adjustedMPG;
+      const fuelCost = fuelAmount * parseFloat(String(truckDetails.currentFuelPrice));
+      const costPerMile = fuelCost / routeDetails.distance;
+
+      // Create new trip object with calculated values
+      const newTrip: Trip = {
+        id: Date.now().toString(),
+        date: formData.date,
+        startOdometer: 0,
+        endOdometer: 0,
+        fuelAmount,
+        fuelCost,
+        notes: '',
+        mpg: adjustedMPG,
+        costPerMile,
+        vehicleDetails: {
+          vehicleClass: truckDetails.vehicleClass,
+          wheelConfig: truckDetails.wheelConfig,
+          fuelType: truckDetails.fuelType,
+          loadStatus: truckDetails.loadStatus,
+          trailerWeight: String(truckDetails.trailerWeight),
+          currentFuelPrice: String(truckDetails.currentFuelPrice)
+        },
+        route: {
+          origin: formData.origin,
+          destination: formData.destination,
+          distance: routeDetails.distance,
+          oneWayDistance: routeDetails.oneWayDistance,
+          duration: routeDetails.duration,
+          coordinates: routeDetails.coordinates,
+          routeGeometry: routeDetails.routeGeometry,
+          isRoundTrip: formData.isRoundTrip,
+        }
+      };
+
+      // Add trip to history
+      setTrips(prevTrips => [...prevTrips, newTrip]);
+
+      // Reset form
+      setFormData({
+        date: '',
+        origin: '',
+        destination: '',
+        distance: '',
+        isRoundTrip: false,
+        elevation: null,
+        estimatedMPG: '',
+        fuelAmount: '',
+        fuelCost: '',
+      });
+      setMarkers({});
+
+    } catch (err) {
+      setRouteError(err instanceof Error ? err.message : 'An error occurred while processing the trip');
+    } finally {
+      setRouteLoading(false);
+    }
   };
 
   // Calculate total statistics
@@ -882,263 +1175,6 @@ const TripTracker: React.FC = () => {
       };
     });
   }, [sortedTrips]);
-
-  // Update the debounced fetch suggestions function
-  const debouncedFetchSuggestions = useCallback(
-    debounce(async (input: string) => {
-      if (!input.trim()) {
-        setSuggestions([]);
-        return;
-      }
-      try {
-        const apiKey = import.meta.env.VITE_OPENROUTE_API_KEY;
-        if (!apiKey) {
-          throw new Error('OpenRouteService API key is missing');
-        }
-
-        const targetUrl = `${OPENROUTE_API_URL}/geocode/search?api_key=${apiKey}&text=${encodeURIComponent(input)}&layers=address,street,venue&size=5&boundary.country=US`;
-        
-        const response = await fetch(targetUrl, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'User-Agent': 'RVR-App/1.0'
-          }
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('API Error Response:', errorText);
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (data?.features) {
-          const formattedSuggestions = data.features.map((feature: any) => ({
-            label: feature.properties.label,
-            value: feature.properties.label,
-            coordinates: feature.geometry.coordinates
-          }));
-          setSuggestions(formattedSuggestions);
-        } else {
-          setSuggestions([]);
-        }
-      } catch (error) {
-        console.error('Error fetching suggestions:', error);
-        setSuggestions([]);
-      }
-    }, 300),
-    []
-  );
-
-  // Update the Autocomplete components
-  const renderAutocomplete = (type: 'origin' | 'destination') => (
-    <Autocomplete
-      freeSolo
-      options={suggestions}
-      getOptionLabel={(option) => typeof option === 'string' ? option : option.label}
-      value={type === 'origin' ? formData.origin : formData.destination}
-      onChange={(_, newValue) => {
-        if (typeof newValue === 'string') {
-          setFormData(prev => ({ ...prev, [type]: newValue }));
-        } else if (newValue) {
-          setFormData(prev => ({ ...prev, [type]: newValue.label }));
-          if (newValue.coordinates) {
-            const [lon, lat] = newValue.coordinates;
-            if (type === 'origin') {
-              setMarkers(prev => ({ ...prev, origin: [lat, lon] }));
-            } else {
-              setMarkers(prev => ({ ...prev, destination: [lat, lon] }));
-            }
-            // Trigger route calculation if both locations are set
-            if (type === 'origin' && formData.destination) {
-              calculateRouteDetails(newValue.label, formData.destination, formData.isRoundTrip);
-            } else if (type === 'destination' && formData.origin) {
-              calculateRouteDetails(formData.origin, newValue.label, formData.isRoundTrip);
-            }
-          }
-        }
-      }}
-      onInputChange={(_, newInputValue) => {
-        setFormData(prev => ({ ...prev, [type]: newInputValue }));
-        debouncedFetchSuggestions(newInputValue);
-      }}
-      renderInput={(params) => (
-        <TextField
-          {...params}
-          label={type === 'origin' ? 'Origin' : 'Destination'}
-          required
-          fullWidth
-          margin="normal"
-          error={!!errors[type]}
-          helperText={errors[type]}
-          sx={{
-            '& .MuiOutlinedInput-root': {
-              borderRadius: 2,
-              background: 'rgba(255, 255, 255, 0.8)',
-              minHeight: '56px',
-              '& .MuiAutocomplete-input': {
-                fontSize: '1.1rem',
-                padding: '12px 14px',
-              },
-            },
-            '& .MuiInputLabel-root': {
-              fontSize: '1.1rem',
-            },
-          }}
-        />
-      )}
-      filterOptions={(options, params) => {
-        const filter = createFilterOptions<Location>();
-        const filtered = filter(options, params);
-        if (params.inputValue !== '') {
-          filtered.push({
-            inputValue: params.inputValue,
-            label: `Add "${params.inputValue}"`,
-            value: params.inputValue,
-            coordinates: [0, 0]
-          });
-        }
-        return filtered;
-      }}
-      selectOnFocus
-      clearOnBlur
-      handleHomeEndKeys
-      id={`${type}-autocomplete`}
-      sx={{ flex: 1 }}
-    />
-  );
-
-  // Add current location function
-  const getCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setRouteError('Geolocation is not supported by your browser. Please enter a location manually.');
-      return;
-    }
-
-    // Show loading state
-    setRouteLoading(true);
-    setRouteError(null);
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const { latitude, longitude } = position.coords;
-          const apiKey = import.meta.env.VITE_OPENROUTE_API_KEY;
-          if (!apiKey) {
-            throw new Error('OpenRouteService API key is missing');
-          }
-
-          const targetUrl = `${OPENROUTE_API_URL}/geocode/reverse?api_key=${apiKey}&point.lon=${longitude}&point.lat=${latitude}&layers=address,street,venue&size=1`;
-          
-          const response = await fetch(targetUrl, {
-            method: 'GET',
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-              'User-Agent': 'RVR-App/1.0'
-            }
-          });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Reverse geocoding API error:', errorText);
-            throw new Error(`Failed to get location details. Status: ${response.status}`);
-          }
-
-          const data = await response.json();
-          if (data?.features?.length > 0) {
-            const feature = data.features[0];
-            const location: Location = {
-              label: feature.properties.label,
-              value: feature.properties.label,
-              coordinates: feature.geometry.coordinates
-            };
-            handleLocationSelect(location, 'origin');
-          } else {
-            throw new Error('No location details found');
-          }
-        } catch (error) {
-          console.error('Error processing location:', error);
-          setRouteError(error instanceof Error ? error.message : 'Failed to process location');
-        } finally {
-          setRouteLoading(false);
-        }
-      },
-      (error) => {
-        setRouteLoading(false);
-        let errorMessage = 'Failed to get current location';
-        
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage = 'Location access was denied. Please enable location services in your browser settings and try again.';
-            break;
-          case error.POSITION_UNAVAILABLE:
-            errorMessage = 'Location information is unavailable. Please check your device settings and ensure location services are enabled.';
-            break;
-          case error.TIMEOUT:
-            errorMessage = 'Location request timed out. Please check your internet connection and try again.';
-            break;
-          default:
-            errorMessage = `Location error: ${error.message}`;
-        }
-        
-        console.error('Geolocation error:', error);
-        setRouteError(errorMessage);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      }
-    );
-  };
-
-  // Function to handle location selection
-  const handleLocationSelect = async (
-    location: Location | null,
-    type: 'origin' | 'destination'
-  ) => {
-    if (!location) return;
-
-    const newFormData = { ...formData };
-    const [lon, lat] = location.coordinates;
-    if (type === 'origin') {
-      newFormData.origin = location.label;
-      setMarkers(prev => ({ ...prev, origin: [lat, lon] }));
-    } else {
-      newFormData.destination = location.label;
-      setMarkers(prev => ({ ...prev, destination: [lat, lon] }));
-    }
-    setFormData(newFormData);
-
-    // If both locations are set, calculate the route and update all fields
-    if (newFormData.origin && newFormData.destination) {
-      const routeInfo = await calculateRouteDetails(
-        newFormData.origin,
-        newFormData.destination,
-        newFormData.isRoundTrip
-      );
-      if (routeInfo) {
-        const gallonsNeeded = routeInfo.distance / (parseFloat(truckDetails.averageMPG) || 0);
-        const fuelCost = gallonsNeeded * (parseFloat(truckDetails.currentFuelPrice) || 0);
-
-        setFormData(prev => ({
-          ...prev,
-          fuelAmount: gallonsNeeded.toFixed(1),
-          fuelCost: fuelCost.toFixed(2)
-        }));
-      }
-    }
-  };
-
-  // Calculate estimated trip cost
-  const calculateTripCost = (miles: number) => {
-    if (!parseFloat(truckDetails.averageMPG)) return 0;
-    const gallonsNeeded = miles / (parseFloat(truckDetails.averageMPG) || 0);
-    return gallonsNeeded * (parseFloat(truckDetails.currentFuelPrice) || 0);
-  };
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -1256,9 +1292,15 @@ const TripTracker: React.FC = () => {
                     <TextField
                 label="Trailer Weight (lbs)"
                       type="number"
-                value={truckDetails.trailerWeight || ''}
-                onChange={(e) => handleTruckDetailsChange('trailerWeight', e.target.value)}
-                inputProps={{ min: 0, step: 100 }}
+                value={truckDetails.trailerWeight}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  handleTruckDetailsChange('trailerWeight', value);
+                }}
+                inputProps={{ 
+                  min: 0, 
+                  step: 100
+                }}
                 helperText="Enter weight in pounds"
               />
             )}
@@ -1267,8 +1309,14 @@ const TripTracker: React.FC = () => {
               label="Fuel Tank Size (gallons)"
                       type="number"
               value={truckDetails.fuelTankSize}
-              onChange={(e) => handleTruckDetailsChange('fuelTankSize', e.target.value)}
-              inputProps={{ min: 0, step: 1 }}
+              onChange={(e) => {
+                const value = e.target.value;
+                handleTruckDetailsChange('fuelTankSize', value);
+              }}
+              inputProps={{ 
+                min: 0, 
+                step: 1
+              }}
             />
 
             <FormControl fullWidth>
@@ -1288,7 +1336,10 @@ const TripTracker: React.FC = () => {
                 label="Current Fuel Price ($/gallon)"
                       type="number"
                 value={truckDetails.currentFuelPrice}
-                onChange={(e) => handleTruckDetailsChange('currentFuelPrice', e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  handleTruckDetailsChange('currentFuelPrice', value);
+                }}
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     borderRadius: 2,
@@ -1372,7 +1423,7 @@ const TripTracker: React.FC = () => {
                   let mpgAdjustment = 1.0;
                   
                   if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-                    const trailerWeight = parseFloat(truckDetails.trailerWeight);
+                    const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
                     mpgAdjustment *= (1 - (trailerWeight * 0.000001));
                   }
                   
@@ -1388,7 +1439,7 @@ const TripTracker: React.FC = () => {
               </Typography>
               <Typography variant="h4" sx={{ color: 'primary.main' }}>
                 {(() => {
-                  const fuelTankSize = parseFloat(truckDetails.fuelTankSize);
+                  const fuelTankSize = parseFloat(String(truckDetails.fuelTankSize));
                   if (isNaN(fuelTankSize) || fuelTankSize <= 0) return 'Enter fuel tank size';
                   
                   const baseMPG = truckDetails.vehicleClass === 'class1' || 
@@ -1401,7 +1452,7 @@ const TripTracker: React.FC = () => {
                   let mpgAdjustment = 1.0;
                   
                   if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-                    const trailerWeight = parseFloat(truckDetails.trailerWeight);
+                    const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
                     mpgAdjustment *= (1 - (trailerWeight * 0.000001));
                   }
                   
@@ -1417,7 +1468,7 @@ const TripTracker: React.FC = () => {
               </Typography>
               <Typography variant="h4" sx={{ color: 'primary.main' }}>
                 {(() => {
-                  const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice);
+                  const currentFuelPrice = parseFloat(String(truckDetails.currentFuelPrice));
                   if (isNaN(currentFuelPrice) || currentFuelPrice <= 0) return 'Enter fuel price';
                   
                   const baseMPG = truckDetails.vehicleClass === 'class1' || 
@@ -1430,7 +1481,7 @@ const TripTracker: React.FC = () => {
                   let mpgAdjustment = 1.0;
                   
                   if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-                    const trailerWeight = parseFloat(truckDetails.trailerWeight);
+                    const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
                     mpgAdjustment *= (1 - (trailerWeight * 0.000001));
                   }
                   
@@ -1446,8 +1497,8 @@ const TripTracker: React.FC = () => {
               </Typography>
               <Typography variant="h4" sx={{ color: 'primary.main' }}>
                 {(() => {
-                  const fuelTankSize = parseFloat(truckDetails.fuelTankSize);
-                  const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice);
+                  const fuelTankSize = parseFloat(String(truckDetails.fuelTankSize));
+                  const currentFuelPrice = parseFloat(String(truckDetails.currentFuelPrice));
                   if (isNaN(fuelTankSize) || fuelTankSize <= 0) return 'Enter fuel tank size';
                   if (isNaN(currentFuelPrice) || currentFuelPrice <= 0) return 'Enter fuel price';
                   return `$${(fuelTankSize * currentFuelPrice).toFixed(2)}`;
@@ -1513,51 +1564,78 @@ const TripTracker: React.FC = () => {
                 Trip Details
               </Typography>
               <Box sx={{ display: 'grid', gap: 3 }}>
-                    <TextField
-                  name="date"
-                  label="Date"
-                  type="date"
-                  value={formData.date}
-                  onChange={handleInputChange}
-                  InputLabelProps={{ shrink: true }}
-                  inputProps={{
-                    min: new Date().toISOString().split('T')[0],
-                    max: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]
-                  }}
-                />
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <TextField
+                        name="date"
+                        label="Date"
+                        type="date"
+                        value={formData.date}
+                        onChange={handleInputChange}
+                        InputLabelProps={{ shrink: true }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            height: '64px',
+                            fontSize: '1.2rem'
+                          }
+                        }}
+                        inputProps={{
+                          min: new Date().toISOString().split('T')[0],
+                          max: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]
+                        }}
+                      />
+                      <IconButton
+                        onClick={() => {
+                          const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement;
+                          if (dateInput) dateInput.showPicker();
+                        }}
+                        sx={{ 
+                          height: '64px',
+                          width: '64px',
+                          color: 'primary.main'
+                        }}
+                      >
+                        <CalendarToday />
+                      </IconButton>
+                    </Box>
 
-                <Box sx={{ display: 'grid', gap: 2 }}>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    {renderAutocomplete('origin')}
-                    <Button
-                      variant="outlined"
-                      onClick={getCurrentLocation}
-                      sx={{ 
-                        minWidth: '56px',
-                        height: '56px',
-                        alignSelf: 'center'
-                      }}
-                      title="Use current location"
-                    >
-                      <MyLocation />
-                    </Button>
-                  </Box>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    {renderAutocomplete('destination')}
-                    <Button
-                      variant="outlined"
-                      onClick={getCurrentLocation}
-                      sx={{ 
-                        minWidth: '56px',
-                        height: '56px',
-                        alignSelf: 'center'
-                      }}
-                      title="Use current location"
-                    >
-                      <MyLocation />
-                    </Button>
-                  </Box>
-                </Box>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          {renderAutocomplete('origin')}
+                        </Box>
+                        <Button
+                          variant="outlined"
+                          onClick={() => getCurrentLocation('origin')}
+                          sx={{ 
+                            minWidth: '64px',
+                            width: '64px',
+                            height: '64px',
+                            borderRadius: 2
+                          }}
+                          title="Use current location"
+                        >
+                          <MyLocation />
+                        </Button>
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          {renderAutocomplete('destination')}
+                        </Box>
+                        <Button
+                          variant="outlined"
+                          onClick={() => getCurrentLocation('destination')}
+                          sx={{ 
+                            minWidth: '64px',
+                            width: '64px',
+                            height: '64px',
+                            borderRadius: 2
+                          }}
+                          title="Use current location"
+                        >
+                          <MyLocation />
+                        </Button>
+                      </Box>
+                    </Box>
 
                 {routeError && (
                   <Alert severity="error" sx={{ mt: 2 }}>
@@ -1566,7 +1644,7 @@ const TripTracker: React.FC = () => {
                 )}
 
                 {(markers.origin || markers.destination) && (
-                  <Box sx={{ height: 300, borderRadius: 2, overflow: 'hidden', position: 'relative' }}>
+                  <Box sx={{ height: 400, borderRadius: 2, overflow: 'hidden', position: 'relative', mb: 3 }}>
                     <MapContainer
                       center={mapCenter}
                       zoom={6}
@@ -1579,12 +1657,12 @@ const TripTracker: React.FC = () => {
                       />
                       <ZoomControl position="topright" />
                       <MapUpdater center={mapCenter} />
-                      {markers.origin && (
+                      {markers.origin && markers.origin[0] && markers.origin[1] && (
                         <Marker position={markers.origin}>
                           <Popup>Origin: {formData.origin}</Popup>
                         </Marker>
                       )}
-                      {markers.destination && (
+                      {markers.destination && markers.destination[0] && markers.destination[1] && (
                         <Marker position={markers.destination}>
                           <Popup>Destination: {formData.destination}</Popup>
                         </Marker>
@@ -1594,8 +1672,8 @@ const TripTracker: React.FC = () => {
                           positions={markers.route}
                           pathOptions={{
                             color: theme.palette.primary.main,
-                            weight: 3,
-                            opacity: 0.7,
+                            weight: 4,
+                            opacity: 0.8,
                             dashArray: '5, 10'
                           }}
                         />
@@ -1627,7 +1705,7 @@ const TripTracker: React.FC = () => {
                           let mpgAdjustment = 1.0;
                           
                           if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-                            const trailerWeight = parseFloat(truckDetails.trailerWeight);
+                            const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
                             mpgAdjustment *= (1 - (trailerWeight * 0.000001));
                           }
                           
@@ -1641,7 +1719,7 @@ const TripTracker: React.FC = () => {
                       <Typography variant="h4" sx={{ fontWeight: 700 }}>
                         {(() => {
                           const distance = parseFloat(formData.distance) || 0;
-                          const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice) || 0;
+                          const currentFuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
                           const baseMPG = truckDetails.vehicleClass === 'class1' || 
                                          truckDetails.vehicleClass === 'class2' || 
                                          truckDetails.vehicleClass === 'class3' || 
@@ -1652,7 +1730,7 @@ const TripTracker: React.FC = () => {
                           let mpgAdjustment = 1.0;
                           
                           if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-                            const trailerWeight = parseFloat(truckDetails.trailerWeight);
+                            const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
                             mpgAdjustment *= (1 - (trailerWeight * 0.000001));
                           }
                           
@@ -1666,7 +1744,7 @@ const TripTracker: React.FC = () => {
                       <Typography variant="subtitle2" color="text.secondary">Cost per Mile</Typography>
                       <Typography variant="h4" sx={{ fontWeight: 700 }}>
                         {(() => {
-                          const currentFuelPrice = parseFloat(truckDetails.currentFuelPrice) || 0;
+                          const currentFuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
                           const baseMPG = truckDetails.vehicleClass === 'class1' || 
                                          truckDetails.vehicleClass === 'class2' || 
                                          truckDetails.vehicleClass === 'class3' || 
@@ -1677,7 +1755,7 @@ const TripTracker: React.FC = () => {
                           let mpgAdjustment = 1.0;
                           
                           if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-                            const trailerWeight = parseFloat(truckDetails.trailerWeight);
+                            const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
                             mpgAdjustment *= (1 - (trailerWeight * 0.000001));
                           }
                           
