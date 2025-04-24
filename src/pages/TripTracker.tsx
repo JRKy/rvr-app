@@ -30,6 +30,7 @@ import {
   List,
   ListItem,
   ListItemText,
+  Fade,
 } from '@mui/material';
 import {
   LineChart,
@@ -1218,866 +1219,868 @@ const TripTracker: React.FC = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography 
-        variant="h3" 
-        component="h1" 
-        gutterBottom 
-        sx={{ 
-          fontWeight: 800,
-          background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          mb: 4,
-          textAlign: 'center',
-          letterSpacing: '-1px',
-          fontSize: { xs: '2rem', md: '2.5rem' }
-        }}
-      >
-        Trip Tracker
-      </Typography>
-
-      <Paper 
-        elevation={0} 
-        sx={{ 
-          p: { xs: 3, md: 4 },
-          borderRadius: 4,
-          background: `linear-gradient(145deg, ${theme.palette.background.paper}, ${theme.palette.background.default})`,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-          backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          position: 'relative',
-          overflow: 'hidden',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: '4px',
-            background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-          }
-        }}
-      >
-        {/* Always visible fuel estimates section */}
+      <Fade in timeout={800}>
         <Paper 
-          elevation={0}
-          sx={{
-            p: 3,
-            mb: 3,
+          elevation={0} 
+          sx={{ 
+            p: { xs: 3, md: 6 },
             borderRadius: 4,
-            border: '1px solid',
-            borderColor: 'divider',
-            background: 'rgba(255, 255, 255, 0.8)',
-            backdropFilter: 'blur(10px)',
+            background: `linear-gradient(145deg, ${theme.palette.background.paper}, ${theme.palette.background.default})`,
             boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            position: 'relative',
+            overflow: 'hidden',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '4px',
+              background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+            }
           }}
         >
-          <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-            Vehicle Specifications
+          <Typography 
+            variant="h3" 
+            component="h1" 
+            gutterBottom 
+            sx={{ 
+              fontWeight: 800,
+              background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              mb: 4,
+              textAlign: 'center',
+              letterSpacing: '-1px',
+              fontSize: { xs: '2rem', md: '2.5rem' }
+            }}
+          >
+            Trip Tracker
           </Typography>
-          <Box sx={{ display: 'grid', gap: 3 }}>
-            <FormControl fullWidth>
-              <InputLabel>Vehicle Type</InputLabel>
-              <Select
-                value={truckDetails.vehicleClass}
-                label="Vehicle Type"
-                onChange={(e) => handleTruckDetailsChange('vehicleClass', e.target.value)}
-              >
-                <ListSubheader>Pickup Trucks</ListSubheader>
-                <MenuItem value="class1">Class 1 (½ Ton - F-150, Silverado 1500, Ram 1500)</MenuItem>
-                <MenuItem value="class2">Class 2 (¾ Ton - F-250, Silverado 2500, Ram 2500)</MenuItem>
-                <MenuItem value="class3">Class 3 (1 Ton - F-350, Silverado 3500, Ram 3500)</MenuItem>
-                <MenuItem value="class4">Class 4 (1¼ Ton - F-450, Silverado 4500, Ram 4500)</MenuItem>
-                
-                <ListSubheader>Drivable RVs</ListSubheader>
-                <MenuItem value="classA">Class A (Large Motorhome, 30-45ft)</MenuItem>
-                <MenuItem value="classB">Class B (Van Camper, 18-24ft)</MenuItem>
-                <MenuItem value="classBPlus">Class B+ (Extended Van, 24-28ft)</MenuItem>
-                <MenuItem value="classC">Class C (Cab-Over, 25-35ft)</MenuItem>
-                <MenuItem value="superC">Super C (Truck Chassis, 30-40ft)</MenuItem>
-              </Select>
-            </FormControl>
 
-            {truckDetails.vehicleClass === 'class1' || 
-             truckDetails.vehicleClass === 'class2' || 
-             truckDetails.vehicleClass === 'class3' || 
-             truckDetails.vehicleClass === 'class4' ? (
+          {/* Vehicle Specifications Paper */}
+          <Paper 
+            elevation={0}
+            sx={{
+              p: 3,
+              mb: 3,
+              borderRadius: 4,
+              border: '1px solid',
+              borderColor: 'divider',
+              background: 'rgba(255, 255, 255, 0.8)',
+              backdropFilter: 'blur(10px)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+            }}
+          >
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+              Vehicle Specifications
+            </Typography>
+            <Box sx={{ display: 'grid', gap: 3 }}>
               <FormControl fullWidth>
-                <InputLabel>Wheel Configuration</InputLabel>
+                <InputLabel>Vehicle Type</InputLabel>
                 <Select
-                  value={truckDetails.wheelConfig}
-                  label="Wheel Configuration"
-                  onChange={(e) => handleTruckDetailsChange('wheelConfig', e.target.value)}
+                  value={truckDetails.vehicleClass}
+                  label="Vehicle Type"
+                  onChange={(e) => handleTruckDetailsChange('vehicleClass', e.target.value)}
                 >
-                  <MenuItem value="srw">Single Rear Wheel (SRW)</MenuItem>
-                  <MenuItem value="drw">Dual Rear Wheel (DRW)</MenuItem>
+                  <ListSubheader>Pickup Trucks</ListSubheader>
+                  <MenuItem value="class1">Class 1 (½ Ton - F-150, Silverado 1500, Ram 1500)</MenuItem>
+                  <MenuItem value="class2">Class 2 (¾ Ton - F-250, Silverado 2500, Ram 2500)</MenuItem>
+                  <MenuItem value="class3">Class 3 (1 Ton - F-350, Silverado 3500, Ram 3500)</MenuItem>
+                  <MenuItem value="class4">Class 4 (1¼ Ton - F-450, Silverado 4500, Ram 4500)</MenuItem>
+                  
+                  <ListSubheader>Drivable RVs</ListSubheader>
+                  <MenuItem value="classA">Class A (Large Motorhome, 30-45ft)</MenuItem>
+                  <MenuItem value="classB">Class B (Van Camper, 18-24ft)</MenuItem>
+                  <MenuItem value="classBPlus">Class B+ (Extended Van, 24-28ft)</MenuItem>
+                  <MenuItem value="classC">Class C (Cab-Over, 25-35ft)</MenuItem>
+                  <MenuItem value="superC">Super C (Truck Chassis, 30-40ft)</MenuItem>
                 </Select>
               </FormControl>
-            ) : null}
 
-            <FormControl fullWidth>
-              <InputLabel>Load Status</InputLabel>
-              <Select
-                value={truckDetails.loadStatus}
-                label="Load Status"
-                onChange={(e) => handleTruckDetailsChange('loadStatus', e.target.value)}
-              >
-                <MenuItem value="empty">Empty</MenuItem>
-                <MenuItem value="loaded">Loaded</MenuItem>
-                <MenuItem value="towing">Towing</MenuItem>
-              </Select>
-            </FormControl>
+              {truckDetails.vehicleClass === 'class1' || 
+               truckDetails.vehicleClass === 'class2' || 
+               truckDetails.vehicleClass === 'class3' || 
+               truckDetails.vehicleClass === 'class4' ? (
+                <FormControl fullWidth>
+                  <InputLabel>Wheel Configuration</InputLabel>
+                  <Select
+                    value={truckDetails.wheelConfig}
+                    label="Wheel Configuration"
+                    onChange={(e) => handleTruckDetailsChange('wheelConfig', e.target.value)}
+                  >
+                    <MenuItem value="srw">Single Rear Wheel (SRW)</MenuItem>
+                    <MenuItem value="drw">Dual Rear Wheel (DRW)</MenuItem>
+                  </Select>
+                </FormControl>
+              ) : null}
 
-            {truckDetails.loadStatus === 'towing' && (
-                    <TextField
-                label="Trailer Weight (lbs)"
-                      type="number"
-                value={truckDetails.trailerWeight}
+              <FormControl fullWidth>
+                <InputLabel>Load Status</InputLabel>
+                <Select
+                  value={truckDetails.loadStatus}
+                  label="Load Status"
+                  onChange={(e) => handleTruckDetailsChange('loadStatus', e.target.value)}
+                >
+                  <MenuItem value="empty">Empty</MenuItem>
+                  <MenuItem value="loaded">Loaded</MenuItem>
+                  <MenuItem value="towing">Towing</MenuItem>
+                </Select>
+              </FormControl>
+
+              {truckDetails.loadStatus === 'towing' && (
+                      <TextField
+                  label="Trailer Weight (lbs)"
+                        type="number"
+                  value={truckDetails.trailerWeight}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    handleTruckDetailsChange('trailerWeight', value);
+                  }}
+                  inputProps={{ 
+                    min: 0, 
+                    step: 100
+                  }}
+                  helperText="Enter weight in pounds"
+                />
+              )}
+
+                      <TextField
+                label="Fuel Tank Size (gallons)"
+                        type="number"
+                value={truckDetails.fuelTankSize}
                 onChange={(e) => {
                   const value = e.target.value;
-                  handleTruckDetailsChange('trailerWeight', value);
+                  handleTruckDetailsChange('fuelTankSize', value);
                 }}
                 inputProps={{ 
                   min: 0, 
-                  step: 100
+                  step: 1
                 }}
-                helperText="Enter weight in pounds"
               />
-            )}
 
-                    <TextField
-              label="Fuel Tank Size (gallons)"
-                      type="number"
-              value={truckDetails.fuelTankSize}
-              onChange={(e) => {
-                const value = e.target.value;
-                handleTruckDetailsChange('fuelTankSize', value);
-              }}
-              inputProps={{ 
-                min: 0, 
-                step: 1
-              }}
-            />
+              <FormControl fullWidth>
+                <InputLabel>Fuel Type</InputLabel>
+                <Select
+                  value={truckDetails.fuelType}
+                  label="Fuel Type"
+                  onChange={(e) => handleTruckDetailsChange('fuelType', e.target.value)}
+                >
+                  <MenuItem value="gas">Gasoline</MenuItem>
+                  <MenuItem value="diesel">Diesel</MenuItem>
+                </Select>
+              </FormControl>
 
-            <FormControl fullWidth>
-              <InputLabel>Fuel Type</InputLabel>
-              <Select
-                value={truckDetails.fuelType}
-                label="Fuel Type"
-                onChange={(e) => handleTruckDetailsChange('fuelType', e.target.value)}
-              >
-                <MenuItem value="gas">Gasoline</MenuItem>
-                <MenuItem value="diesel">Diesel</MenuItem>
-              </Select>
-            </FormControl>
-
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <TextField
-                label="Current Fuel Price ($/gallon)"
-                      type="number"
-                value={truckDetails.currentFuelPrice}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  handleTruckDetailsChange('currentFuelPrice', value);
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: 2,
-                    background: 'rgba(255, 255, 255, 0.8)',
-                  }
-                }}
-                inputProps={{ 
-                  step: "0.01",
-                  min: "0"
-                }}
-                helperText={`Source: ${priceSource === 'EIA' ? 'EIA Weekly Average' : 'Default Price'}`}
-              />
-              <Tooltip title="Fetch latest weekly average price from U.S. Energy Information Administration">
-                <Button
-                  variant="outlined"
-                  onClick={() => {
-                    if (!EIA_API_KEY) {
-                      setFuelPriceError('EIA API key is not configured. Using default fuel prices.');
-                      setTruckDetails(prev => ({
-                        ...prev,
-                        currentFuelPrice: DEFAULT_FUEL_PRICES[prev.fuelType].toString()
-                      }));
-                      setPriceSource('default');
-                      return;
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <TextField
+                  label="Current Fuel Price ($/gallon)"
+                        type="number"
+                  value={truckDetails.currentFuelPrice}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    handleTruckDetailsChange('currentFuelPrice', value);
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      background: 'rgba(255, 255, 255, 0.8)',
                     }
-
-                    setIsLoadingFuelPrice(true);
-                    setFuelPriceError(null);
-                    
-                    const seriesId = truckDetails.fuelType === 'gas' 
-                      ? 'PET.EMM_EPM0_PTE_NUS_DPG.W'
-                      : 'PET.EMD_EPD2D_PTE_NUS_DPG.W';
-
-                    fetch(`${EIA_API_BASE_URL}/seriesid/${seriesId}?api_key=${EIA_API_KEY}`)
-                      .then(response => {
-                        if (!response.ok) {
-                          throw new Error(`HTTP error! status: ${response.status}`);
-                        }
-                        return response.json();
-                      })
-                      .then(data => {
-                        if (data.response?.data?.[0]?.value) {
-                          const price = data.response.data[0].value;
-                          setTruckDetails(prev => ({ ...prev, currentFuelPrice: price.toString() }));
-                          setPriceSource('EIA');
-                        } else {
-                          throw new Error('No price data available');
-                        }
-                      })
-                      .catch(error => {
-                        console.error('Error fetching fuel price:', error);
-                        setFuelPriceError('Failed to fetch current fuel price. Using default value.');
+                  }}
+                  inputProps={{ 
+                    step: "0.01",
+                    min: "0"
+                  }}
+                  helperText={`Source: ${priceSource === 'EIA' ? 'EIA Weekly Average' : 'Default Price'}`}
+                />
+                <Tooltip title="Fetch latest weekly average price from U.S. Energy Information Administration">
+                  <Button
+                    variant="outlined"
+                    onClick={() => {
+                      if (!EIA_API_KEY) {
+                        setFuelPriceError('EIA API key is not configured. Using default fuel prices.');
                         setTruckDetails(prev => ({
                           ...prev,
                           currentFuelPrice: DEFAULT_FUEL_PRICES[prev.fuelType].toString()
                         }));
                         setPriceSource('default');
-                      })
-                      .finally(() => {
-                        setIsLoadingFuelPrice(false);
-                      });
-                  }}
-                  disabled={isLoadingFuelPrice}
-                >
-                  {isLoadingFuelPrice ? 'Updating...' : 'Get Latest Price'}
-                </Button>
-              </Tooltip>
-            </Box>
+                        return;
+                      }
 
-            {fuelPriceError && (
-              <Alert severity="warning" sx={{ mt: 1 }}>
-                {fuelPriceError}
-              </Alert>
-            )}
-          </Box>
+                      setIsLoadingFuelPrice(true);
+                      setFuelPriceError(null);
+                      
+                      const seriesId = truckDetails.fuelType === 'gas' 
+                        ? 'PET.EMM_EPM0_PTE_NUS_DPG.W'
+                        : 'PET.EMD_EPD2D_PTE_NUS_DPG.W';
 
-          <Box sx={{ mt: 4, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr' }, gap: 2 }}>
-            <Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Estimated MPG
-              </Typography>
-              <Typography variant="h4" sx={{ color: 'primary.main' }}>
-                {(() => {
-                  const baseMPG = truckDetails.vehicleClass === 'class1' || 
-                                 truckDetails.vehicleClass === 'class2' || 
-                                 truckDetails.vehicleClass === 'class3' || 
-                                 truckDetails.vehicleClass === 'class4'
-                    ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
-                    : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
-                  
-                  let mpgAdjustment = 1.0;
-                  
-                  if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-                    const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
-                    mpgAdjustment *= (1 - (trailerWeight * 0.000001));
-                  }
-                  
-                  const adjustedMPG = baseMPG * mpgAdjustment;
-                  return `${adjustedMPG.toFixed(1)} MPG`;
-                })()}
-              </Typography>
-            </Box>
-
-            <Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Estimated Range
-              </Typography>
-              <Typography variant="h4" sx={{ color: 'primary.main' }}>
-                {(() => {
-                  const fuelTankSize = parseFloat(String(truckDetails.fuelTankSize));
-                  if (isNaN(fuelTankSize) || fuelTankSize <= 0) return 'Enter fuel tank size';
-                  
-                  const baseMPG = truckDetails.vehicleClass === 'class1' || 
-                                 truckDetails.vehicleClass === 'class2' || 
-                                 truckDetails.vehicleClass === 'class3' || 
-                                 truckDetails.vehicleClass === 'class4'
-                    ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
-                    : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
-                  
-                  let mpgAdjustment = 1.0;
-                  
-                  if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-                    const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
-                    mpgAdjustment *= (1 - (trailerWeight * 0.000001));
-                  }
-                  
-                  const adjustedMPG = baseMPG * mpgAdjustment;
-                  return `${(fuelTankSize * adjustedMPG).toFixed(0)} miles`;
-                })()}
-              </Typography>
-            </Box>
-
-            <Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Cost per Mile
-              </Typography>
-              <Typography variant="h4" sx={{ color: 'primary.main' }}>
-                {(() => {
-                  const distance1 = Number(formData.distance || 0);
-                  const fuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
-                  if (isNaN(fuelPrice) || fuelPrice <= 0) return 'Enter fuel price';
-                  
-                  const baseMPG = truckDetails.vehicleClass === 'class1' || 
-                                 truckDetails.vehicleClass === 'class2' || 
-                                 truckDetails.vehicleClass === 'class3' || 
-                                 truckDetails.vehicleClass === 'class4'
-                    ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
-                    : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
-                  
-                  let mpgAdjustment = 1.0;
-                  
-                  if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-                    const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
-                    mpgAdjustment *= (1 - (trailerWeight * 0.000001));
-                  }
-                  
-                  const adjustedMPG = baseMPG * mpgAdjustment;
-                  return `$${(fuelPrice / adjustedMPG).toFixed(2)}`;
-                })()}
-              </Typography>
-            </Box>
-
-            <Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Tank Refill Cost
-              </Typography>
-              <Typography variant="h4" sx={{ color: 'primary.main' }}>
-                {(() => {
-                  const fuelTankSize = parseFloat(String(truckDetails.fuelTankSize));
-                  const fuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
-                  if (isNaN(fuelTankSize) || fuelTankSize <= 0) return 'Enter fuel tank size';
-                  if (isNaN(fuelPrice) || fuelPrice <= 0) return 'Enter fuel price';
-                  return `$${(fuelTankSize * fuelPrice).toFixed(2)}`;
-                })()}
-              </Typography>
-            </Box>
-          </Box>
-        </Paper>
-
-        <Tabs
-          value={activeTab}
-          onChange={(_, newValue) => setActiveTab(newValue)}
-          centered
-          sx={{
-            mb: 3,
-            '& .MuiTabs-indicator': {
-              background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-              height: 3,
-              borderRadius: 1.5,
-            }
-          }}
-        >
-          <Tab 
-            icon={<Route />} 
-            label="Plan Trip" 
-            iconPosition="start"
-            sx={{
-              '&.Mui-selected': {
-                color: theme.palette.primary.main,
-                fontWeight: 600,
-              }
-            }}
-          />
-          <Tab 
-            icon={<History />} 
-            label="Trip History" 
-            iconPosition="start"
-            sx={{
-              '&.Mui-selected': {
-                color: theme.palette.primary.main,
-                fontWeight: 600,
-              }
-            }}
-          />
-        </Tabs>
-
-        {activeTab === 0 && (
-          <Box component="form" onSubmit={handleSubmit} sx={{ display: 'grid', gap: 3 }}>
-            {/* Trip Planning Form */}
-            <Paper 
-              elevation={0} 
-              sx={{ 
-                p: 3,
-                borderRadius: 4,
-                border: '1px solid',
-                borderColor: 'divider',
-                background: 'rgba(255, 255, 255, 0.8)',
-                backdropFilter: 'blur(10px)',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-              }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                Trip Details
-              </Typography>
-              <Box sx={{ display: 'grid', gap: 3 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <TextField
-                        name="date"
-                        label="Date"
-                        type="date"
-                        value={formData.date}
-                        onChange={handleInputChange}
-                        InputLabelProps={{ shrink: true }}
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            height: '64px',
-                            fontSize: '1.2rem'
+                      fetch(`${EIA_API_BASE_URL}/seriesid/${seriesId}?api_key=${EIA_API_KEY}`)
+                        .then(response => {
+                          if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
                           }
-                        }}
-                        inputProps={{
-                          min: new Date().toISOString().split('T')[0],
-                          max: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]
-                        }}
-                      />
-                      <IconButton
-                        onClick={() => {
-                          const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement;
-                          if (dateInput) dateInput.showPicker();
-                        }}
-                        sx={{ 
-                          height: '64px',
-                          width: '64px',
-                          color: 'primary.main'
-                        }}
-                      >
-                        <CalendarToday />
-                      </IconButton>
-                    </Box>
+                          return response.json();
+                        })
+                        .then(data => {
+                          if (data.response?.data?.[0]?.value) {
+                            const price = data.response.data[0].value;
+                            setTruckDetails(prev => ({ ...prev, currentFuelPrice: price.toString() }));
+                            setPriceSource('EIA');
+                          } else {
+                            throw new Error('No price data available');
+                          }
+                        })
+                        .catch(error => {
+                          console.error('Error fetching fuel price:', error);
+                          setFuelPriceError('Failed to fetch current fuel price. Using default value.');
+                          setTruckDetails(prev => ({
+                            ...prev,
+                            currentFuelPrice: DEFAULT_FUEL_PRICES[prev.fuelType].toString()
+                          }));
+                          setPriceSource('default');
+                        })
+                        .finally(() => {
+                          setIsLoadingFuelPrice(false);
+                        });
+                    }}
+                    disabled={isLoadingFuelPrice}
+                  >
+                    {isLoadingFuelPrice ? 'Updating...' : 'Get Latest Price'}
+                  </Button>
+                </Tooltip>
+              </Box>
 
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          {renderAutocomplete('origin')}
-                        </Box>
-                        <Button
-                          variant="outlined"
-                          onClick={() => getCurrentLocation('origin')}
-                          sx={{ 
-                            minWidth: '64px',
-                            width: '64px',
-                            height: '64px',
-                            borderRadius: 2
+              {fuelPriceError && (
+                <Alert severity="warning" sx={{ mt: 1 }}>
+                  {fuelPriceError}
+                </Alert>
+              )}
+            </Box>
+
+            <Box sx={{ mt: 4, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr' }, gap: 2 }}>
+              <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  Estimated MPG
+                </Typography>
+                <Typography variant="h4" sx={{ color: 'primary.main' }}>
+                  {(() => {
+                    const baseMPG = truckDetails.vehicleClass === 'class1' || 
+                                   truckDetails.vehicleClass === 'class2' || 
+                                   truckDetails.vehicleClass === 'class3' || 
+                                   truckDetails.vehicleClass === 'class4'
+                          ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
+                          : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
+                        
+                    let mpgAdjustment = 1.0;
+                    
+                    if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
+                      const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
+                      mpgAdjustment *= (1 - (trailerWeight * 0.000001));
+                    }
+                    
+                    const adjustedMPG = baseMPG * mpgAdjustment;
+                    return `${adjustedMPG.toFixed(1)} MPG`;
+                  })()}
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  Estimated Range
+                </Typography>
+                <Typography variant="h4" sx={{ color: 'primary.main' }}>
+                  {(() => {
+                    const fuelTankSize = parseFloat(String(truckDetails.fuelTankSize));
+                    if (isNaN(fuelTankSize) || fuelTankSize <= 0) return 'Enter fuel tank size';
+                    
+                    const baseMPG = truckDetails.vehicleClass === 'class1' || 
+                                   truckDetails.vehicleClass === 'class2' || 
+                                   truckDetails.vehicleClass === 'class3' || 
+                                   truckDetails.vehicleClass === 'class4'
+                          ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
+                          : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
+                        
+                    let mpgAdjustment = 1.0;
+                    
+                    if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
+                      const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
+                      mpgAdjustment *= (1 - (trailerWeight * 0.000001));
+                    }
+                    
+                    const adjustedMPG = baseMPG * mpgAdjustment;
+                    return `${(fuelTankSize * adjustedMPG).toFixed(0)} miles`;
+                  })()}
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  Cost per Mile
+                </Typography>
+                <Typography variant="h4" sx={{ color: 'primary.main' }}>
+                  {(() => {
+                    const distance1 = Number(formData.distance || 0);
+                    const fuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
+                    if (isNaN(fuelPrice) || fuelPrice <= 0) return 'Enter fuel price';
+                    
+                    const baseMPG = truckDetails.vehicleClass === 'class1' || 
+                                   truckDetails.vehicleClass === 'class2' || 
+                                   truckDetails.vehicleClass === 'class3' || 
+                                   truckDetails.vehicleClass === 'class4'
+                          ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
+                          : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
+                        
+                    let mpgAdjustment = 1.0;
+                    
+                    if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
+                      const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
+                      mpgAdjustment *= (1 - (trailerWeight * 0.000001));
+                    }
+                    
+                    const adjustedMPG = baseMPG * mpgAdjustment;
+                    return `$${(fuelPrice / adjustedMPG).toFixed(2)}`;
+                  })()}
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  Tank Refill Cost
+                </Typography>
+                <Typography variant="h4" sx={{ color: 'primary.main' }}>
+                  {(() => {
+                    const fuelTankSize = parseFloat(String(truckDetails.fuelTankSize));
+                    const fuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
+                    if (isNaN(fuelTankSize) || fuelTankSize <= 0) return 'Enter fuel tank size';
+                    if (isNaN(fuelPrice) || fuelPrice <= 0) return 'Enter fuel price';
+                    return `$${(fuelTankSize * fuelPrice).toFixed(2)}`;
+                  })()}
+                </Typography>
+              </Box>
+            </Box>
+          </Paper>
+
+          <Tabs
+            value={activeTab}
+            onChange={(_, newValue) => setActiveTab(newValue)}
+            centered
+            sx={{
+              mb: 3,
+              '& .MuiTabs-indicator': {
+                background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                height: 3,
+                borderRadius: 1.5,
+              }
+            }}
+          >
+            <Tab 
+              icon={<Route />} 
+              label="Plan Trip" 
+              iconPosition="start"
+              sx={{
+                '&.Mui-selected': {
+                  color: theme.palette.primary.main,
+                  fontWeight: 600,
+                }
+              }}
+            />
+            <Tab 
+              icon={<History />} 
+              label="Trip History" 
+              iconPosition="start"
+              sx={{
+                '&.Mui-selected': {
+                  color: theme.palette.primary.main,
+                  fontWeight: 600,
+                }
+              }}
+            />
+          </Tabs>
+
+          {activeTab === 0 && (
+            <Box component="form" onSubmit={handleSubmit} sx={{ display: 'grid', gap: 3 }}>
+              {/* Trip Planning Form */}
+              <Paper 
+                elevation={0} 
+                sx={{ 
+                  p: 3,
+                  borderRadius: 4,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  background: 'rgba(255, 255, 255, 0.8)',
+                  backdropFilter: 'blur(10px)',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+                }}
+              >
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                  Trip Details
+                </Typography>
+                <Box sx={{ display: 'grid', gap: 3 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <TextField
+                          name="date"
+                          label="Date"
+                          type="date"
+                          value={formData.date}
+                          onChange={handleInputChange}
+                          InputLabelProps={{ shrink: true }}
+                          sx={{
+                            '& .MuiOutlinedInput-root': {
+                              height: '64px',
+                              fontSize: '1.2rem'
+                            }
                           }}
-                          title="Use current location"
-                        >
-                          <MyLocation />
-                        </Button>
-                      </Box>
-                      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          {renderAutocomplete('destination')}
-                        </Box>
-                        <Button
-                          variant="outlined"
-                          onClick={() => getCurrentLocation('destination')}
-                          sx={{ 
-                            minWidth: '64px',
-                            width: '64px',
-                            height: '64px',
-                            borderRadius: 2
+                          inputProps={{
+                            min: new Date().toISOString().split('T')[0],
+                            max: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]
                           }}
-                          title="Use current location"
-                        >
-                          <MyLocation />
-                        </Button>
-                      </Box>
-                    </Box>
-
-                {routeError && (
-                  <Alert severity="error" sx={{ mt: 2 }}>
-                    {routeError}
-                  </Alert>
-                )}
-
-                {(markers.origin || markers.destination) && (
-                  <Box sx={{ height: 400, borderRadius: 2, overflow: 'hidden', position: 'relative', mb: 3 }}>
-                    <MapContainer
-                      center={mapCenter}
-                      zoom={6}
-                      style={{ height: '100%', width: '100%' }}
-                      zoomControl={false}
-                    >
-                      <TileLayer
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                      />
-                      <ZoomControl position="topright" />
-                      <MapUpdater center={mapCenter} />
-                      {markers.origin && markers.origin[0] && markers.origin[1] && (
-                        <Marker position={markers.origin}>
-                          <Popup>Origin: {formData.origin}</Popup>
-                        </Marker>
-                      )}
-                      {markers.destination && markers.destination[0] && markers.destination[1] && (
-                        <Marker position={markers.destination}>
-                          <Popup>Destination: {formData.destination}</Popup>
-                        </Marker>
-                      )}
-                      {markers.route && markers.route.length > 0 && (
-                        <Polyline
-                          positions={markers.route}
-                          color="blue"
-                          weight={3}
-                          opacity={0.7}
                         />
-                      )}
-                    </MapContainer>
-                  </Box>
-                )}
+                        <IconButton
+                          onClick={() => {
+                            const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement;
+                            if (dateInput) dateInput.showPicker();
+                          }}
+                          sx={{ 
+                            height: '64px',
+                            width: '64px',
+                            color: 'primary.main'
+                          }}
+                        >
+                          <CalendarToday />
+                        </IconButton>
+                      </Box>
 
-                {formData.origin && formData.destination && (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            {renderAutocomplete('origin')}
+                          </Box>
+                          <Button
+                            variant="outlined"
+                            onClick={() => getCurrentLocation('origin')}
+                            sx={{ 
+                              minWidth: '64px',
+                              width: '64px',
+                              height: '64px',
+                              borderRadius: 2
+                            }}
+                            title="Use current location"
+                          >
+                            <MyLocation />
+                          </Button>
+                        </Box>
+                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            {renderAutocomplete('destination')}
+                          </Box>
+                          <Button
+                            variant="outlined"
+                            onClick={() => getCurrentLocation('destination')}
+                            sx={{ 
+                              minWidth: '64px',
+                              width: '64px',
+                              height: '64px',
+                              borderRadius: 2
+                            }}
+                            title="Use current location"
+                          >
+                            <MyLocation />
+                          </Button>
+                        </Box>
+                      </Box>
+
+                  {routeError && (
+                    <Alert severity="error" sx={{ mt: 2 }}>
+                      {routeError}
+                    </Alert>
+                  )}
+
+                  {(markers.origin || markers.destination) && (
+                    <Box sx={{ height: 400, borderRadius: 2, overflow: 'hidden', position: 'relative', mb: 3 }}>
+                      <MapContainer
+                        center={mapCenter}
+                        zoom={6}
+                        style={{ height: '100%', width: '100%' }}
+                        zoomControl={false}
+                      >
+                        <TileLayer
+                          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        />
+                        <ZoomControl position="topright" />
+                        <MapUpdater center={mapCenter} />
+                        {markers.origin && markers.origin[0] && markers.origin[1] && (
+                          <Marker position={markers.origin}>
+                            <Popup>Origin: {formData.origin}</Popup>
+                          </Marker>
+                        )}
+                        {markers.destination && markers.destination[0] && markers.destination[1] && (
+                          <Marker position={markers.destination}>
+                            <Popup>Destination: {formData.destination}</Popup>
+                          </Marker>
+                        )}
+                        {markers.route && markers.route.length > 0 && (
+                          <Polyline
+                            positions={markers.route}
+                            color="blue"
+                            weight={3}
+                            opacity={0.7}
+                          />
+                        )}
+                      </MapContainer>
+                    </Box>
+                  )}
+
+                  {formData.origin && formData.destination && (
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr 1fr' }, gap: 2 }}>
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Total Miles</Typography>
+                        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                          {formData.distance || '0.0'}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Est. Duration</Typography>
+                        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                          {(() => {
+                            const distance = Number(formData.distance || 0);
+                            // Use average speed of 65 mph for duration estimate
+                            const hours = distance / 65;
+                            return `${hours.toFixed(1)}h`;
+                          })()}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Estimated Fuel Needed</Typography>
+                        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                          {(() => {
+                            const distance2 = Number(formData.distance || 0);
+                            const baseMPG = truckDetails.vehicleClass === 'class1' || 
+                                           truckDetails.vehicleClass === 'class2' || 
+                                           truckDetails.vehicleClass === 'class3' || 
+                                           truckDetails.vehicleClass === 'class4'
+                              ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
+                              : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
+                            
+                            let mpgAdjustment = 1.0;
+                            
+                            if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
+                              const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
+                              mpgAdjustment *= (1 - (trailerWeight * 0.000001));
+                            }
+                            
+                            const adjustedMPG = baseMPG * mpgAdjustment;
+                            return `${(distance2 / adjustedMPG).toFixed(1)} gal`;
+                          })()}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Estimated Cost</Typography>
+                        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                          {(() => {
+                            const distance3 = Number(formData.distance || 0);
+                            const fuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
+                            const baseMPG = truckDetails.vehicleClass === 'class1' || 
+                                           truckDetails.vehicleClass === 'class2' || 
+                                           truckDetails.vehicleClass === 'class3' || 
+                                           truckDetails.vehicleClass === 'class4'
+                              ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
+                              : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
+                            
+                            let mpgAdjustment = 1.0;
+                            
+                            if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
+                              const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
+                              mpgAdjustment *= (1 - (trailerWeight * 0.000001));
+                            }
+                            
+                            const adjustedMPG = baseMPG * mpgAdjustment;
+                            const gallonsNeeded = distance3 / adjustedMPG;
+                            return `$${(gallonsNeeded * fuelPrice).toFixed(2)}`;
+                          })()}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Cost per Mile</Typography>
+                        <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                          {(() => {
+                            const distance4 = Number(formData.distance || 0);
+                            const fuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
+                            const baseMPG = truckDetails.vehicleClass === 'class1' || 
+                                           truckDetails.vehicleClass === 'class2' || 
+                                           truckDetails.vehicleClass === 'class3' || 
+                                           truckDetails.vehicleClass === 'class4'
+                              ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
+                              : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
+                            
+                            let mpgAdjustment = 1.0;
+                            
+                            if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
+                              const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
+                              mpgAdjustment *= (1 - (trailerWeight * 0.000001));
+                            }
+                            
+                            const adjustedMPG = baseMPG * mpgAdjustment;
+                            return `$${(fuelPrice / adjustedMPG).toFixed(2)}`;
+                          })()}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
+
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={formData.isRoundTrip}
+                          onChange={(e) => {
+                            const isRoundTrip = e.target.checked;
+                            setFormData(prev => ({
+                              ...prev,
+                              isRoundTrip,
+                              distance: prev.distance * (isRoundTrip ? 2 : 0.5)
+                            }));
+                          }}
+                        />
+                      }
+                      label="Round Trip"
+                    />
+                      <Button
+                        type="submit"
+                        variant="contained"
+                      size="large"
+                      disabled={!formData.date || !formData.origin || !formData.destination}
+                      sx={{
+                        py: 1.5,
+                        borderRadius: 2,
+                        textTransform: 'none',
+                        fontWeight: 700,
+                        fontSize: '1.1rem',
+                        background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          background: `linear-gradient(45deg, ${theme.palette.secondary.main}, ${theme.palette.primary.main})`,
+                          boxShadow: '0 8px 25px rgba(0,0,0,0.2)',
+                          transform: 'translateY(-2px)',
+                        },
+                        '&:active': {
+                          transform: 'translateY(0)',
+                        }
+                      }}
+                      >
+                        Add Trip
+                      </Button>
+                  </Box>
+                </Box>
+              </Paper>
+            </Box>
+          )}
+
+          {activeTab === 1 && (
+            <Box sx={{ mt: 4 }}>
+              {/* Trip History Table */}
+              <Paper 
+                elevation={0} 
+                sx={{ 
+                  p: { xs: 2, md: 3 },
+                  borderRadius: 4,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  background: 'rgba(255, 255, 255, 0.8)',
+                  backdropFilter: 'blur(10px)',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+                }}
+              >
+                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    Trip History
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                    <FormControl size="small" sx={{ minWidth: 120 }}>
+                      <InputLabel>Sort By</InputLabel>
+                      <Select
+                        value={sortField}
+                        label="Sort By"
+                        onChange={(e) => setSortField(e.target.value as SortField)}
+                      >
+                        <MenuItem value="date">Date</MenuItem>
+                        <MenuItem value="mpg">MPG</MenuItem>
+                        <MenuItem value="costPerMile">Cost per Mile</MenuItem>
+                        <MenuItem value="miles">Miles</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <Tooltip title={sortOrder === 'asc' ? 'Sort Ascending' : 'Sort Descending'}>
+                      <IconButton onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}>
+                        {sortOrder === 'asc' ? <ArrowUpward /> : <ArrowDownward />}
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </Box>
+
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Route</TableCell>
+                    <TableCell align="right">Miles</TableCell>
+                    <TableCell align="right">Hours</TableCell>
+                    <TableCell align="right">Fuel (gal)</TableCell>
+                    <TableCell align="right">Cost</TableCell>
+                    <TableCell align="right">MPG</TableCell>
+                    <TableCell align="right">Cost/Mile</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                    {sortedTrips.map((trip) => (
+                    <TableRow key={trip.id}>
+                        <TableCell>{trip.date}</TableCell>
+                      <TableCell>
+                          {trip.route ? (
+                            <Box>
+                              <Typography variant="body2" color="text.secondary">
+                                {trip.origin} → {trip.destination}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                Vehicle: {trip.vehicleClass.replace('class', 'Class ').toUpperCase()}
+                                {trip.wheelConfig ? ` (${trip.wheelConfig.toUpperCase()})` : ''}
+                                {trip.loadStatus === 'towing' && trip.trailerWeight ? 
+                                  ` • Towing ${trip.trailerWeight} lbs` : ''}
+                              </Typography>
+                            </Box>
+                          ) : (
+                            'Manual Entry'
+                          )}
+                      </TableCell>
+                        <TableCell align="right">
+                          {trip.distance.toFixed(1)}
+                        </TableCell>
+                        <TableCell align="right">
+                          {(trip.route?.duration || trip.distance / 65).toFixed(1)}
+                        </TableCell>
+                        <TableCell align="right">
+                          {trip.fuelAmount.toFixed(1)}
+                        </TableCell>
+                        <TableCell align="right">
+                          ${trip.fuelCost.toFixed(2)}
+                        </TableCell>
+                        <TableCell align="right">
+                          {trip.mpg.toFixed(1)}
+                        </TableCell>
+                        <TableCell align="right">
+                          ${trip.costPerMile.toFixed(3)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              </Paper>
+
+              {/* Statistics and Chart */}
+              <Box sx={{ mt: 4, display: 'grid', gap: 3 }}>
+                <Paper 
+                  elevation={0} 
+                  sx={{ 
+                    p: 3,
+                    borderRadius: 4,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    background: 'rgba(255, 255, 255, 0.8)',
+                    backdropFilter: 'blur(10px)',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+                  }}
+                >
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                    Trip Statistics
+                  </Typography>
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr 1fr' }, gap: 2 }}>
                     <Box>
                       <Typography variant="subtitle2" color="text.secondary">Total Miles</Typography>
                       <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                        {formData.distance || '0.0'}
+                        {totalStats.totalMiles.toFixed(1)}
                       </Typography>
                     </Box>
                     <Box>
-                      <Typography variant="subtitle2" color="text.secondary">Est. Duration</Typography>
+                      <Typography variant="subtitle2" color="text.secondary">Total Hours</Typography>
                       <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                        {(() => {
-                          const distance = Number(formData.distance || 0);
-                          // Use average speed of 65 mph for duration estimate
-                          const hours = distance / 65;
-                          return `${hours.toFixed(1)}h`;
-                        })()}
+                        {totalStats.totalHours.toFixed(1)}
                       </Typography>
                     </Box>
                     <Box>
-                      <Typography variant="subtitle2" color="text.secondary">Estimated Fuel Needed</Typography>
+                      <Typography variant="subtitle2" color="text.secondary">Total Fuel Cost</Typography>
                       <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                        {(() => {
-                          const distance2 = Number(formData.distance || 0);
-                          const baseMPG = truckDetails.vehicleClass === 'class1' || 
-                                         truckDetails.vehicleClass === 'class2' || 
-                                         truckDetails.vehicleClass === 'class3' || 
-                                         truckDetails.vehicleClass === 'class4'
-                            ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
-                            : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
-                          
-                          let mpgAdjustment = 1.0;
-                          
-                          if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-                            const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
-                            mpgAdjustment *= (1 - (trailerWeight * 0.000001));
-                          }
-                          
-                          const adjustedMPG = baseMPG * mpgAdjustment;
-                          return `${(distance2 / adjustedMPG).toFixed(1)} gal`;
-                        })()}
+                        ${totalStats.totalFuelCost.toFixed(2)}
                       </Typography>
                     </Box>
                     <Box>
-                      <Typography variant="subtitle2" color="text.secondary">Estimated Cost</Typography>
+                      <Typography variant="subtitle2" color="text.secondary">Total Fuel Used</Typography>
                       <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                        {(() => {
-                          const distance3 = Number(formData.distance || 0);
-                          const fuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
-                          const baseMPG = truckDetails.vehicleClass === 'class1' || 
-                                         truckDetails.vehicleClass === 'class2' || 
-                                         truckDetails.vehicleClass === 'class3' || 
-                                         truckDetails.vehicleClass === 'class4'
-                            ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
-                            : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
-                          
-                          let mpgAdjustment = 1.0;
-                          
-                          if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-                            const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
-                            mpgAdjustment *= (1 - (trailerWeight * 0.000001));
-                          }
-                          
-                          const adjustedMPG = baseMPG * mpgAdjustment;
-                          const gallonsNeeded = distance3 / adjustedMPG;
-                          return `$${(gallonsNeeded * fuelPrice).toFixed(2)}`;
-                        })()}
+                        {totalStats.totalFuelAmount.toFixed(1)} gal
                       </Typography>
                     </Box>
                     <Box>
-                      <Typography variant="subtitle2" color="text.secondary">Cost per Mile</Typography>
+                      <Typography variant="subtitle2" color="text.secondary">Average MPG</Typography>
                       <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                        {(() => {
-                          const distance4 = Number(formData.distance || 0);
-                          const fuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
-                          const baseMPG = truckDetails.vehicleClass === 'class1' || 
-                                         truckDetails.vehicleClass === 'class2' || 
-                                         truckDetails.vehicleClass === 'class3' || 
-                                         truckDetails.vehicleClass === 'class4'
-                            ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
-                            : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
-                          
-                          let mpgAdjustment = 1.0;
-                          
-                          if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-                            const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
-                            mpgAdjustment *= (1 - (trailerWeight * 0.000001));
-                          }
-                          
-                          const adjustedMPG = baseMPG * mpgAdjustment;
-                          return `$${(fuelPrice / adjustedMPG).toFixed(2)}`;
-                        })()}
+                        {averageStats.mpg.toFixed(1)} MPG
                       </Typography>
                     </Box>
                   </Box>
-                )}
+                </Paper>
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={formData.isRoundTrip}
-                        onChange={(e) => {
-                          const isRoundTrip = e.target.checked;
-                          setFormData(prev => ({
-                            ...prev,
-                            isRoundTrip,
-                            distance: prev.distance * (isRoundTrip ? 2 : 0.5)
-                          }));
+                <Paper 
+                  elevation={0} 
+                  sx={{ 
+                    p: 3,
+                    borderRadius: 4,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    background: 'rgba(255, 255, 255, 0.8)',
+                    backdropFilter: 'blur(10px)',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+                    height: 300
+                  }}
+                >
+                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                    Fuel Economy Trend
+                  </Typography>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis yAxisId="left" />
+                      <YAxis yAxisId="right" orientation="right" />
+                      <RechartsTooltip 
+                        formatter={(value: number, name: string) => {
+                          if (name === 'MPG') {
+                            return [`${value.toFixed(1)} MPG`, name];
+                          } else {
+                            return [`$${value.toFixed(3)}`, name];
+                          }
                         }}
                       />
-                    }
-                    label="Round Trip"
-                  />
-                    <Button
-                      type="submit"
-                      variant="contained"
-                    size="large"
-                    disabled={!formData.date || !formData.origin || !formData.destination}
-                    sx={{
-                      py: 1.5,
-                      borderRadius: 2,
-                      textTransform: 'none',
-                      fontWeight: 700,
-                      fontSize: '1.1rem',
-                      background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                      boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
-                      transition: 'all 0.3s ease',
-                      '&:hover': {
-                        background: `linear-gradient(45deg, ${theme.palette.secondary.main}, ${theme.palette.primary.main})`,
-                        boxShadow: '0 8px 25px rgba(0,0,0,0.2)',
-                        transform: 'translateY(-2px)',
-                      },
-                      '&:active': {
-                        transform: 'translateY(0)',
-                      }
-                    }}
-                    >
-                      Add Trip
-                    </Button>
-                </Box>
+                      <Line
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="mpg"
+                        stroke={theme.palette.primary.main}
+                        name="MPG"
+                      />
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="costPerMile"
+                        stroke={theme.palette.secondary.main}
+                        name="Cost per Mile"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Paper>
               </Box>
-            </Paper>
-          </Box>
-        )}
-
-        {activeTab === 1 && (
-          <Box sx={{ mt: 4 }}>
-            {/* Trip History Table */}
-            <Paper 
-              elevation={0} 
-              sx={{ 
-                p: { xs: 2, md: 3 },
-                borderRadius: 4,
-                border: '1px solid',
-                borderColor: 'divider',
-                background: 'rgba(255, 255, 255, 0.8)',
-                backdropFilter: 'blur(10px)',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-              }}
-            >
-              <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  Trip History
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
-                    <InputLabel>Sort By</InputLabel>
-                    <Select
-                      value={sortField}
-                      label="Sort By"
-                      onChange={(e) => setSortField(e.target.value as SortField)}
-                    >
-                      <MenuItem value="date">Date</MenuItem>
-                      <MenuItem value="mpg">MPG</MenuItem>
-                      <MenuItem value="costPerMile">Cost per Mile</MenuItem>
-                      <MenuItem value="miles">Miles</MenuItem>
-                    </Select>
-                  </FormControl>
-                  <Tooltip title={sortOrder === 'asc' ? 'Sort Ascending' : 'Sort Descending'}>
-                    <IconButton onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}>
-                      {sortOrder === 'asc' ? <ArrowUpward /> : <ArrowDownward />}
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              </Box>
-
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Route</TableCell>
-                  <TableCell align="right">Miles</TableCell>
-                  <TableCell align="right">Hours</TableCell>
-                  <TableCell align="right">Fuel (gal)</TableCell>
-                  <TableCell align="right">Cost</TableCell>
-                  <TableCell align="right">MPG</TableCell>
-                  <TableCell align="right">Cost/Mile</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                  {sortedTrips.map((trip) => (
-                  <TableRow key={trip.id}>
-                      <TableCell>{trip.date}</TableCell>
-                    <TableCell>
-                        {trip.route ? (
-                          <Box>
-                            <Typography variant="body2" color="text.secondary">
-                              {trip.origin} → {trip.destination}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary" display="block">
-                              Vehicle: {trip.vehicleClass.replace('class', 'Class ').toUpperCase()}
-                              {trip.wheelConfig ? ` (${trip.wheelConfig.toUpperCase()})` : ''}
-                              {trip.loadStatus === 'towing' && trip.trailerWeight ? 
-                                ` • Towing ${trip.trailerWeight} lbs` : ''}
-                            </Typography>
-                          </Box>
-                        ) : (
-                          'Manual Entry'
-                        )}
-                    </TableCell>
-                      <TableCell align="right">
-                        {trip.distance.toFixed(1)}
-                      </TableCell>
-                      <TableCell align="right">
-                        {(trip.route?.duration || trip.distance / 65).toFixed(1)}
-                      </TableCell>
-                      <TableCell align="right">
-                        {trip.fuelAmount.toFixed(1)}
-                      </TableCell>
-                      <TableCell align="right">
-                        ${trip.fuelCost.toFixed(2)}
-                      </TableCell>
-                      <TableCell align="right">
-                        {trip.mpg.toFixed(1)}
-                      </TableCell>
-                      <TableCell align="right">
-                        ${trip.costPerMile.toFixed(3)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            </Paper>
-
-            {/* Statistics and Chart */}
-            <Box sx={{ mt: 4, display: 'grid', gap: 3 }}>
-              <Paper 
-                elevation={0} 
-                sx={{ 
-                  p: 3,
-                  borderRadius: 4,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  background: 'rgba(255, 255, 255, 0.8)',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-                }}
-              >
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                  Trip Statistics
-                </Typography>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr 1fr' }, gap: 2 }}>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Total Miles</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {totalStats.totalMiles.toFixed(1)}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Total Hours</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {totalStats.totalHours.toFixed(1)}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Total Fuel Cost</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      ${totalStats.totalFuelCost.toFixed(2)}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Total Fuel Used</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {totalStats.totalFuelAmount.toFixed(1)} gal
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Average MPG</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {averageStats.mpg.toFixed(1)} MPG
-                    </Typography>
-                  </Box>
-                </Box>
-              </Paper>
-
-              <Paper 
-                elevation={0} 
-                sx={{ 
-                  p: 3,
-                  borderRadius: 4,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  background: 'rgba(255, 255, 255, 0.8)',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-                  height: 300
-                }}
-              >
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                  Fuel Economy Trend
-                </Typography>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis yAxisId="left" />
-                    <YAxis yAxisId="right" orientation="right" />
-                    <RechartsTooltip 
-                      formatter={(value: number, name: string) => {
-                        if (name === 'MPG') {
-                          return [`${value.toFixed(1)} MPG`, name];
-                        } else {
-                          return [`$${value.toFixed(3)}`, name];
-                        }
-                      }}
-                    />
-                    <Line
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="mpg"
-                      stroke={theme.palette.primary.main}
-                      name="MPG"
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="costPerMile"
-                      stroke={theme.palette.secondary.main}
-                      name="Cost per Mile"
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </Paper>
             </Box>
-          </Box>
-        )}
-      </Paper>
+          )}
+        </Paper>
+      </Fade>
     </Container>
   );
 };
