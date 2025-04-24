@@ -436,7 +436,9 @@ const TripTracker: React.FC = () => {
       const testLocation = 'New York, NY';
       const targetUrl = `${NOMINATIM_API_URL}/search?format=json&q=${encodeURIComponent(testLocation)}&limit=1&countrycodes=us`;
 
-      console.log('Testing API connection with URL:', targetUrl);
+      if (import.meta.env.DEV) {
+        console.log('Testing API connection with URL:', targetUrl);
+      }
       
       const response = await fetch(targetUrl, {
         headers: {
@@ -444,20 +446,28 @@ const TripTracker: React.FC = () => {
         }
       });
 
-      console.log('API Response Status:', response.status);
+      if (import.meta.env.DEV) {
+        console.log('API Response Status:', response.status);
+      }
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('API Error Response:', errorText);
+        if (import.meta.env.DEV) {
+          console.error('API Error Response:', errorText);
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('API Response Data:', data);
+      if (import.meta.env.DEV) {
+        console.log('API Response Data:', data);
+      }
       
       return data;
     } catch (error) {
-      console.error('API Test Error:', error);
+      if (import.meta.env.DEV) {
+        console.error('API Test Error:', error);
+      }
       throw error;
     }
   };
@@ -1039,7 +1049,9 @@ const TripTracker: React.FC = () => {
       setRouteError(null);
       setRouteLoading(false);
     } catch (error) {
-      console.error('Error submitting trip:', error);
+      if (import.meta.env.DEV) {
+        console.error('Error submitting trip:', error);
+      }
       setRouteError('Failed to submit trip. Please try again.');
     }
   };

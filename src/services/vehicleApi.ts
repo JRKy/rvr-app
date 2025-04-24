@@ -50,23 +50,31 @@ const TRUCK_MANUFACTURERS = [
   'JEEP', 'HONDA', 'HUMMER', 'RIVIAN', 'INTERNATIONAL', 'FREIGHTLINER'
 ];
 
+const isDev = import.meta.env.DEV;
+
 export const fetchMakes = async (year: number): Promise<VehicleMake[]> => {
   try {
     const response = await fetch(
       `${BASE_URL}/vehicles/GetAllMakes?format=json`
     );
     const data = await response.json();
-    console.log('All makes:', data.Results);
+    if (isDev) {
+      console.log('All makes:', data.Results);
+    }
     
     // Filter for truck manufacturers
     const truckMakes = (data.Results || []).filter((make: VehicleMake) => 
       TRUCK_MANUFACTURERS.includes(make.Make_Name.toUpperCase())
     );
     
-    console.log('Filtered truck makes:', truckMakes);
+    if (isDev) {
+      console.log('Filtered truck makes:', truckMakes);
+    }
     return truckMakes;
   } catch (error) {
-    console.error('Error fetching makes:', error);
+    if (isDev) {
+      console.error('Error fetching makes:', error);
+    }
     return [];
   }
 };
@@ -77,20 +85,26 @@ export const fetchModels = async (makeId: number, year: number): Promise<Vehicle
       `${BASE_URL}/vehicles/GetModelsForMakeIdYear/makeId/${makeId}/modelyear/${year}?format=json`
     );
     const data = await response.json();
-    console.log('Models response:', data);
-    if (data.Results) {
-      console.log('Available models:', data.Results.map((m: VehicleModel) => m.Model_Name));
+    if (isDev) {
+      console.log('Models response:', data);
+      if (data.Results) {
+        console.log('Available models:', data.Results.map((m: VehicleModel) => m.Model_Name));
+      }
     }
     return data.Results || [];
   } catch (error) {
-    console.error('Error fetching models:', error);
+    if (isDev) {
+      console.error('Error fetching models:', error);
+    }
     return [];
   }
 };
 
 export const fetchTrims = async (makeName: string, modelName: string, year: number): Promise<Array<{ Trim_ID: number; Trim_Name: string }>> => {
   try {
-    console.log(`Fetching trims for ${makeName} ${modelName} ${year}`);
+    if (isDev) {
+      console.log(`Fetching trims for ${makeName} ${modelName} ${year}`);
+    }
     
     // First get the make ID
     const makesResponse = await fetch(
@@ -108,7 +122,9 @@ export const fetchTrims = async (makeName: string, modelName: string, year: numb
       `${BASE_URL}/vehicles/GetModelsForMakeIdYear/makeId/${make.Make_ID}/modelyear/${year}?format=json`
     );
     const modelData = await modelResponse.json();
-    console.log('Full model data:', modelData.Results);
+    if (isDev) {
+      console.log('Full model data:', modelData.Results);
+    }
     
     if (!modelData.Results || modelData.Results.length === 0) {
       throw new Error(`No models found for ${makeName} ${year}`);
@@ -119,7 +135,9 @@ export const fetchTrims = async (makeName: string, modelName: string, year: numb
       m.Model_Name.toUpperCase().includes(modelName.toUpperCase())
     );
     
-    console.log('Filtered model results:', modelResults);
+    if (isDev) {
+      console.log('Filtered model results:', modelResults);
+    }
     
     if (modelResults.length === 0) {
       throw new Error(`Model ${modelName} not found for year ${year}`);
@@ -136,10 +154,14 @@ export const fetchTrims = async (makeName: string, modelName: string, year: numb
       Trim_Name: trimName
     }));
 
-    console.log('Found trims:', trims);
+    if (isDev) {
+      console.log('Found trims:', trims);
+    }
     return trims;
   } catch (error) {
-    console.error('Error fetching trims:', error);
+    if (isDev) {
+      console.error('Error fetching trims:', error);
+    }
     return [];
   }
 };
@@ -151,7 +173,9 @@ export const fetchVehicleData = async (
   year: number
 ): Promise<VehicleData> => {
   try {
-    console.log(`Fetching specs for ${year} ${make} ${model} ${trim}`);
+    if (isDev) {
+      console.log(`Fetching specs for ${year} ${make} ${model} ${trim}`);
+    }
     
     // Return empty values for manual input
     return {
@@ -168,7 +192,9 @@ export const fetchVehicleData = async (
       }
     };
   } catch (error) {
-    console.error('Error fetching vehicle data:', error);
+    if (isDev) {
+      console.error('Error fetching vehicle data:', error);
+    }
     throw error;
   }
 }; 

@@ -8,7 +8,15 @@ export default defineConfig({
   base: './',
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    sourcemap: false,
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+        pure_funcs: ['console.log', 'console.info', 'console.debug', 'console.warn'],
+      },
+    },
     rollupOptions: {
       output: {
         format: 'es',
