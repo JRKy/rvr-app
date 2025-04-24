@@ -26,6 +26,10 @@ import {
   Checkbox,
   ListSubheader,
   InputAdornment,
+  Grid,
+  List,
+  ListItem,
+  ListItemText,
 } from '@mui/material';
 import {
   LineChart,
@@ -42,6 +46,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import '../styles/leaflet.css';
 import { createFilterOptions } from '@mui/material/Autocomplete';
+import { geocodeLocation } from '../services/geocoding';
 
 // Fix for Leaflet marker icons
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -51,43 +56,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-interface Trip {
-  id: string;
-  date: string;
-  startOdometer: number;
-  endOdometer: number;
-  fuelAmount: number;
-  fuelCost: number;
-  notes: string;
-  mpg: number;
-  costPerMile: number;
-  vehicleDetails: {
-    vehicleClass: string;
-    wheelConfig?: string;
-    fuelType: string;
-    loadStatus: string;
-    trailerWeight?: string;
-    currentFuelPrice: string;
-  };
-  route?: {
-    origin: string;
-    destination: string;
-    distance: number;
-    oneWayDistance: number;
-    duration: string;
-    coordinates: {
-      origin: [number, number];
-      destination: [number, number];
-    };
-    routeGeometry: {
-      type: string;
-      coordinates: [number, number][];
-    };
-    isRoundTrip: boolean;
-  };
-}
-
-type SortField = 'date' | 'mpg' | 'costPerMile' | 'miles';
+type SortField = 'date' | 'mpg' | 'costPerMile' | 'distance';
 type SortOrder = 'asc' | 'desc';
 
 interface Location {
@@ -114,21 +83,24 @@ interface TruckDetails {
   averageMPG: string;
 }
 
-interface TripFormData {
+interface FormData {
   date: string;
   origin: string;
   destination: string;
-  distance: string;
+  distance: number;
+  fuelAmount: number;
+  fuelCost: number;
+  estimatedMPG: number;
   isRoundTrip: boolean;
-  elevation: {
-    ascent: string;
-    descent: string;
-  } | null;
-  estimatedMPG: string;
-  fuelAmount: string;
-  fuelCost: string;
-  startOdometer?: string;
-  endOdometer?: string;
+  currentFuelPrice: number;
+}
+
+interface TripStatistics {
+  totalMiles: number;
+  totalFuelCost: number;
+  totalFuelAmount: number;
+  averageMPG: number;
+  averageCostPerMile: number;
 }
 
 const DEFAULT_FUEL_PRICES = {
@@ -158,6 +130,20 @@ interface GeocodeCache {
 interface ElevationData {
   elevation: number;
   distance: number;
+}
+
+interface RouteData {
+  coordinates: number[][];
+  distance: number;
+  duration: number;
+  origin: [number, number];
+  destination: [number, number];
+}
+
+interface Markers {
+  origin: [number, number] | null;
+  destination: [number, number] | null;
+  route: [number, number][] | null;
 }
 
 // Base MPG values for different vehicle configurations
@@ -359,6 +345,36 @@ type WheelConfig = 'srw' | 'drw';
 type FuelType = 'gas' | 'diesel';
 type LoadStatus = 'empty' | 'loaded' | 'towing';
 
+interface GeocodeResult {
+  lat: number;
+  lon: number;
+}
+
+interface Trip {
+  id: string;
+  date: string;
+  origin: string;
+  destination: string;
+  distance: number;
+  fuelAmount: number;
+  fuelCost: number;
+  estimatedMPG: number;
+  isRoundTrip: boolean;
+  mpg: number;
+  costPerMile: number;
+  vehicleClass: string;
+  wheelConfig: string;
+  loadStatus: string;
+  currentFuelPrice: number;
+  fuelType: string;
+  trailerWeight: number;
+  coordinates: {
+    origin: [number, number];
+    destination: [number, number];
+  };
+  route?: RouteData;
+}
+
 const TripTracker: React.FC = () => {
   const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
@@ -374,27 +390,27 @@ const TripTracker: React.FC = () => {
   });
   const [priceSource, setPriceSource] = useState<'EIA' | 'default'>('default');
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [formData, setFormData] = useState<TripFormData>({
-    date: '',
+  const [formData, setFormData] = useState<FormData>({
+    date: new Date().toISOString().split('T')[0],
     origin: '',
     destination: '',
-    distance: '',
+    distance: 0,
+    fuelAmount: 0,
+    fuelCost: 0,
+    estimatedMPG: 0,
     isRoundTrip: false,
-    elevation: null,
-    estimatedMPG: '',
-    fuelAmount: '',
-    fuelCost: '',
+    currentFuelPrice: 0
   });
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [routeError, setRouteError] = useState<string | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [mapCenter, setMapCenter] = useState<[number, number]>([39.8283, -98.5795]); // Center of US
-  const [markers, setMarkers] = useState<{
-    origin?: [number, number];
-    destination?: [number, number];
-    route?: [number, number][];
-  }>({});
+  const [markers, setMarkers] = useState<Markers>({
+    origin: null,
+    destination: null,
+    route: null
+  });
   const [originSuggestions, setOriginSuggestions] = useState<Location[]>([]);
   const [destinationSuggestions, setDestinationSuggestions] = useState<Location[]>([]);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
@@ -406,6 +422,7 @@ const TripTracker: React.FC = () => {
   const [destinationCoordinates, setDestinationCoordinates] = useState<[number, number] | null>(null);
   const [lastRequestTime, setLastRequestTime] = useState<number>(0);
   const [geocodeCache, setGeocodeCache] = useState<GeocodeCache>({});
+  const [routeDetails, setRouteDetails] = useState<RouteData | null>(null);
 
   // Add cache for recent searches
   const searchCache = useRef<Map<string, Location[]>>(new Map());
@@ -460,7 +477,10 @@ const TripTracker: React.FC = () => {
       }}
       onInputChange={(_, newInputValue) => {
         console.log('Autocomplete onInputChange:', { type, newInputValue });
-        setFormData(prev => ({ ...prev, [type]: newInputValue }));
+        setFormData(prev => ({
+          ...prev,
+          [type]: newInputValue
+        }));
         debouncedFetchSuggestions(newInputValue);
       }}
       options={suggestions}
@@ -577,7 +597,16 @@ const TripTracker: React.FC = () => {
   // Update the input change handler
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'isRoundTrip' ? value === 'true' : 
+              ['distance', 'fuelAmount', 'fuelCost', 'estimatedMPG', 'currentFuelPrice'].includes(name) ? 
+              parseFloat(value) || 0 : value
+    }));
+    
+    if (name === 'isRoundTrip') {
+      calculateRouteDetails();
+    }
   };
 
   const calculateMPG = (startMiles: number, endMiles: number, fuelAmount: number): number => {
@@ -587,65 +616,6 @@ const TripTracker: React.FC = () => {
 
   const calculateCostPerMile = (miles: number, cost: number): number => {
     return miles > 0 ? cost / miles : 0;
-  };
-
-  const geocodeLocation = async (location: string): Promise<[number, number] | null> => {
-    console.log('geocodeLocation called with:', location);
-    try {
-      // Check cache first
-      const cachedResult = geocodeCache[location];
-      if (cachedResult && Date.now() - cachedResult.timestamp < CACHE_EXPIRY) {
-        console.log('Using cached coordinates:', cachedResult.coordinates);
-        return cachedResult.coordinates;
-      }
-
-      // Implement rate limiting
-      const now = Date.now();
-      const timeSinceLastRequest = now - lastRequestTime;
-      if (timeSinceLastRequest < RATE_LIMIT_DELAY) {
-        console.log('Rate limiting, waiting:', RATE_LIMIT_DELAY - timeSinceLastRequest, 'ms');
-        await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY - timeSinceLastRequest));
-      }
-      setLastRequestTime(Date.now());
-
-      const url = `${NOMINATIM_API_URL}/search?format=json&q=${encodeURIComponent(location)}&limit=1&countrycodes=us`;
-      console.log('Fetching coordinates from:', url);
-      
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'RVR-App/1.0'
-        }
-      });
-
-      if (!response.ok) {
-        console.error('Geocoding request failed:', response.status);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Geocoding response:', data);
-      
-      if (data && data.length > 0) {
-        const coordinates: [number, number] = [parseFloat(data[0].lon), parseFloat(data[0].lat)];
-        console.log('Extracted coordinates:', coordinates);
-        
-        // Update cache
-        setGeocodeCache(prev => ({
-          ...prev,
-          [location]: {
-            coordinates,
-            timestamp: Date.now()
-          }
-        }));
-        
-        return coordinates;
-      }
-      console.log('No coordinates found for location');
-      return null;
-    } catch (error) {
-      console.error('Error in geocodeLocation:', error);
-      return null;
-    }
   };
 
   const getElevationData = async (coordinates: [number, number][]): Promise<ElevationData[]> => {
@@ -672,125 +642,75 @@ const TripTracker: React.FC = () => {
     }
   };
 
-  const calculateRouteDetails = async (origin: string, destination: string, isRoundTrip: boolean) => {
+  const calculateRouteDetails = async () => {
     try {
-      console.log('Calculating route from', origin, 'to', destination);
       setRouteLoading(true);
       setRouteError(null);
 
-      const [originCoords, destCoords] = await Promise.all([
-        geocodeLocation(origin),
-        geocodeLocation(destination)
-      ]);
+      const originResult = await geocodeLocation(formData.origin);
+      const destResult = await geocodeLocation(formData.destination);
 
-      console.log('Geocoded coordinates:', { origin: originCoords, destination: destCoords });
-
-      if (!originCoords || !destCoords) {
-        throw new Error('Could not find one or both locations');
+      if (!originResult || !destResult) {
+        throw new Error('Could not geocode one or both locations');
       }
 
-      // Use OSRM's public API for routing
-      const routeUrl = `https://router.project-osrm.org/route/v1/driving/${originCoords[0]},${originCoords[1]};${destCoords[0]},${destCoords[1]}?overview=full&geometries=geojson`;
-      console.log('OSRM URL:', routeUrl);
-      
+      const routeUrl = `https://router.project-osrm.org/route/v1/driving/${originResult.lon},${originResult.lat};${destResult.lon},${destResult.lat}?overview=full&geometries=geojson`;
+
       const response = await fetch(routeUrl);
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('OSRM Error:', errorText);
-        throw new Error('Failed to calculate route');
-      }
-
       const data = await response.json();
-      console.log('OSRM Response:', data);
-      
-      if (!data.routes || !data.routes[0]) {
-        throw new Error('No route found');
+
+      if (data.code !== 'Ok') {
+        throw new Error('Could not calculate route');
       }
 
       const route = data.routes[0];
-      const oneWayDistance = route.distance / 1000 * 0.621371; // Convert meters to miles
-      const totalDistance = isRoundTrip ? oneWayDistance * 2 : oneWayDistance;
-      const duration = route.duration;
+      // Convert coordinates from [lon, lat] to [lat, lon] for Leaflet
+      const coordinates = route.geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
+      const distance = route.distance / 1609.34; // Convert meters to miles
+      const duration = route.duration / 3600; // Convert seconds to hours
 
-      console.log('Route details:', { oneWayDistance, totalDistance, duration });
+      const originCoords: [number, number] = [originResult.lat, originResult.lon];
+      const destCoords: [number, number] = [destResult.lat, destResult.lon];
 
-      // Convert route coordinates to [lat, lon] format for Leaflet
-      const routeCoordinates = route.geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
-      console.log('First 5 route coordinates:', routeCoordinates.slice(0, 5));
-      console.log('Last 5 route coordinates:', routeCoordinates.slice(-5));
-      console.log('Total route points:', routeCoordinates.length);
-
-      // Update markers and map center
-      setMarkers({
-        origin: [originCoords[1], originCoords[0]],
-        destination: [destCoords[1], destCoords[0]],
-        route: routeCoordinates
-      });
-
-      // Calculate bounds to fit the entire route
-      const bounds = routeCoordinates.reduce((acc: [[number, number], [number, number]], coord: [number, number]) => {
-        return [
-          [Math.min(acc[0][0], coord[0]), Math.min(acc[0][1], coord[1])],
-          [Math.max(acc[1][0], coord[0]), Math.max(acc[1][1], coord[1])]
-        ];
-      }, [[originCoords[1], originCoords[0]], [destCoords[1], destCoords[0]]]);
-
-      // Center map on the route
-      const centerLat = (bounds[0][0] + bounds[1][0]) / 2;
-      const centerLon = (bounds[0][1] + bounds[1][1]) / 2;
+      // Calculate center point for the map
+      const centerLat = (originResult.lat + destResult.lat) / 2;
+      const centerLon = (originResult.lon + destResult.lon) / 2;
       setMapCenter([centerLat, centerLon]);
 
-      // Calculate base MPG based on vehicle configuration
-      const baseMPG = getBaseMPG(
-        truckDetails.vehicleClass,
-        truckDetails.wheelConfig,
-        truckDetails.fuelType,
-        truckDetails.loadStatus
-      );
-      
-      // Adjust MPG based on route characteristics
-      let mpgAdjustment = 1.0;
-      
-      // Additional adjustment for towing weight
-      if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
-        const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
-        mpgAdjustment *= (1 - (trailerWeight * 0.000001));
-      }
+      setMarkers({
+        origin: originCoords,
+        destination: destCoords,
+        route: coordinates
+      });
 
-      // Calculate adjusted MPG
-      const estimatedMPG = baseMPG * mpgAdjustment;
-
-      // Calculate fuel usage and cost
-      const gallonsNeeded = totalDistance / estimatedMPG;
-      const currentFuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
-      const fuelCost = gallonsNeeded * currentFuelPrice;
-
-      // Update form data with calculated values
+      // Set the base distance
       setFormData(prev => ({
         ...prev,
-        distance: totalDistance.toFixed(1),
-        fuelAmount: gallonsNeeded.toFixed(1),
-        fuelCost: fuelCost.toFixed(2),
-        isRoundTrip,
-        estimatedMPG: estimatedMPG.toFixed(1)
+        distance: Number(distance.toFixed(2))
       }));
 
-      return {
-        distance: totalDistance,
-        oneWayDistance,
-        duration: `${Math.floor(duration / 3600)}h ${Math.round((duration % 3600) / 60)}m`,
-        coordinates: {
-          origin: [originCoords[1], originCoords[0]] as [number, number],
-          destination: [destCoords[1], destCoords[0]] as [number, number]
-        },
-        routeGeometry: route.geometry,
-        estimatedMPG
-      };
+      // Update the route data in the current trip if it exists
+      setTrips(prev => {
+        if (prev.length === 0) return prev;
+        const lastTrip = prev[prev.length - 1];
+        return [
+          ...prev.slice(0, -1),
+          {
+            ...lastTrip,
+            route: {
+              coordinates,
+              distance: Number(distance.toFixed(2)),
+              duration: Number(duration.toFixed(2)),
+              origin: originCoords,
+              destination: destCoords
+            }
+          }
+        ];
+      });
 
     } catch (error) {
       console.error('Error calculating route:', error);
-      setRouteError(error instanceof Error ? error.message : 'Failed to calculate route');
-      return null;
+      setRouteError('Failed to calculate route. Please try again.');
     } finally {
       setRouteLoading(false);
     }
@@ -951,11 +871,7 @@ const TripTracker: React.FC = () => {
             // Only calculate route if both locations are set and different
             const otherLocation = type === 'origin' ? formData.destination : formData.origin;
             if (otherLocation && otherLocation !== location.value) {
-              calculateRouteDetails(
-                type === 'origin' ? location.value : otherLocation,
-                type === 'destination' ? location.value : otherLocation,
-                formData.isRoundTrip
-              );
+              calculateRouteDetails();
             }
           }
         } catch (error) {
@@ -1037,11 +953,7 @@ const TripTracker: React.FC = () => {
             isRoundTrip: formData.isRoundTrip
           });
           
-          calculateRouteDetails(
-            type === 'origin' ? location.value : otherLocation,
-            type === 'destination' ? location.value : otherLocation,
-            formData.isRoundTrip
-          );
+          calculateRouteDetails();
         }
       }
     } catch (error) {
@@ -1051,110 +963,106 @@ const TripTracker: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.origin || !formData.destination || !formData.date) {
-      setErrors({ origin: 'Please fill in all required fields', destination: 'Please fill in all required fields' });
-      return;
-    }
+    if (!truckDetails) return;
 
     try {
-      setRouteLoading(true);
-      setRouteError(null);
-
-      // Calculate route details
-      const routeDetails = await calculateRouteDetails(formData.origin, formData.destination, formData.isRoundTrip);
+      // Calculate base MPG
+      const baseMPG = truckDetails.vehicleClass === 'class1' || 
+                     truckDetails.vehicleClass === 'class2' || 
+                     truckDetails.vehicleClass === 'class3' || 
+                     truckDetails.vehicleClass === 'class4'
+        ? BASE_MPG[truckDetails.vehicleClass][truckDetails.wheelConfig][truckDetails.fuelType][truckDetails.loadStatus]
+        : BASE_MPG[truckDetails.vehicleClass][truckDetails.fuelType][truckDetails.loadStatus];
       
-      if (!routeDetails) {
-        throw new Error('Could not calculate route details');
-      }
-
-      // Calculate base MPG based on vehicle configuration
-      const baseMPG = getBaseMPG(
-        truckDetails.vehicleClass,
-        truckDetails.wheelConfig,
-        truckDetails.fuelType,
-        truckDetails.loadStatus
-      );
-
-      // Calculate MPG adjustment for trailer weight if towing
-      let mpgAdjustment = 1;
+      // Calculate MPG adjustment for towing
+      let mpgAdjustment = 1.0;
       if (truckDetails.loadStatus === 'towing' && truckDetails.trailerWeight) {
         const trailerWeight = parseFloat(String(truckDetails.trailerWeight));
-        mpgAdjustment = Math.max(0, 1 - (trailerWeight / 10000)); // Adjust MPG based on trailer weight
+        mpgAdjustment *= (1 - (trailerWeight * 0.000001));
       }
-
-      // Calculate adjusted MPG
+      
       const adjustedMPG = baseMPG * mpgAdjustment;
+      const distance = Number(formData.distance);
+      const fuelPrice = parseFloat(truckDetails.currentFuelPrice);
+      const fuelAmount = distance / adjustedMPG;
+      const fuelCost = fuelAmount * fuelPrice;
+      const costPerMile = fuelCost / distance;
 
-      // Calculate fuel amount and cost
-      const fuelAmount = routeDetails.distance / adjustedMPG;
-      const fuelCost = fuelAmount * parseFloat(String(truckDetails.currentFuelPrice));
-      const costPerMile = fuelCost / routeDetails.distance;
-
-      // Create new trip object with calculated values
       const newTrip: Trip = {
         id: Date.now().toString(),
         date: formData.date,
-        startOdometer: 0,
-        endOdometer: 0,
-        fuelAmount,
-        fuelCost,
-        notes: '',
+        origin: formData.origin,
+        destination: formData.destination,
+        distance: Number(distance.toFixed(2)),
+        fuelAmount: Number(fuelAmount.toFixed(2)),
+        fuelCost: Number(fuelCost.toFixed(2)),
+        estimatedMPG: adjustedMPG,
+        isRoundTrip: formData.isRoundTrip,
         mpg: adjustedMPG,
-        costPerMile,
-        vehicleDetails: {
-          vehicleClass: truckDetails.vehicleClass,
-          wheelConfig: truckDetails.wheelConfig,
-          fuelType: truckDetails.fuelType,
-          loadStatus: truckDetails.loadStatus,
-          trailerWeight: String(truckDetails.trailerWeight),
-          currentFuelPrice: String(truckDetails.currentFuelPrice)
+        costPerMile: Number(costPerMile.toFixed(3)),
+        vehicleClass: truckDetails.vehicleClass,
+        wheelConfig: truckDetails.wheelConfig,
+        loadStatus: truckDetails.loadStatus,
+        currentFuelPrice: fuelPrice,
+        fuelType: truckDetails.fuelType,
+        trailerWeight: parseFloat(truckDetails.trailerWeight) || 0,
+        coordinates: {
+          origin: markers.origin || [0, 0],
+          destination: markers.destination || [0, 0]
         },
-        route: {
-          origin: formData.origin,
-          destination: formData.destination,
-          distance: routeDetails.distance,
-          oneWayDistance: routeDetails.oneWayDistance,
-          duration: routeDetails.duration,
-          coordinates: routeDetails.coordinates,
-          routeGeometry: routeDetails.routeGeometry,
-          isRoundTrip: formData.isRoundTrip,
-        }
+        route: markers.route ? {
+          coordinates: markers.route,
+          distance: distance,
+          duration: 0, // We could calculate this if needed
+          origin: markers.origin || [0, 0],
+          destination: markers.destination || [0, 0]
+        } : undefined
       };
 
-      // Add trip to history
-      setTrips(prevTrips => [...prevTrips, newTrip]);
-
+      setTrips(prev => [...prev, newTrip]);
+      
       // Reset form
       setFormData({
-        date: '',
+        date: new Date().toISOString().split('T')[0],
         origin: '',
         destination: '',
-        distance: '',
+        distance: 0,
+        fuelAmount: 0,
+        fuelCost: 0,
+        estimatedMPG: 0,
         isRoundTrip: false,
-        elevation: null,
-        estimatedMPG: '',
-        fuelAmount: '',
-        fuelCost: '',
+        currentFuelPrice: 0
       });
-      setMarkers({});
-
-    } catch (err) {
-      setRouteError(err instanceof Error ? err.message : 'An error occurred while processing the trip');
-    } finally {
+      setMarkers({ origin: null, destination: null, route: null });
+      setRouteError(null);
       setRouteLoading(false);
+    } catch (error) {
+      console.error('Error submitting trip:', error);
+      setRouteError('Failed to submit trip. Please try again.');
     }
   };
 
   // Calculate total statistics
   const totalStats = useMemo(() => {
     return trips.reduce((acc, trip) => {
-      const miles = trip.route?.distance || 0;
+      const miles = trip.distance;
+      const fuelAmount = trip.fuelAmount;
+      const fuelCost = trip.fuelCost;
+      
       return {
         totalMiles: acc.totalMiles + miles,
-        totalFuelCost: acc.totalFuelCost + trip.fuelCost,
-        totalFuelAmount: acc.totalFuelAmount + trip.fuelAmount,
+        totalFuelCost: acc.totalFuelCost + fuelCost,
+        totalFuelAmount: acc.totalFuelAmount + fuelAmount,
+        averageMPG: (acc.totalMiles + miles) / (acc.totalFuelAmount + fuelAmount),
+        averageCostPerMile: (acc.totalFuelCost + fuelCost) / (acc.totalMiles + miles)
       };
-    }, { totalMiles: 0, totalFuelCost: 0, totalFuelAmount: 0 });
+    }, {
+      totalMiles: 0,
+      totalFuelCost: 0,
+      totalFuelAmount: 0,
+      averageMPG: 0,
+      averageCostPerMile: 0
+    });
   }, [trips]);
 
   // Calculate average statistics
@@ -1175,14 +1083,16 @@ const TripTracker: React.FC = () => {
           comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
           break;
         case 'mpg':
-          comparison = a.mpg - b.mpg;
+          comparison = Number(a.mpg) - Number(b.mpg);
           break;
         case 'costPerMile':
-          comparison = a.costPerMile - b.costPerMile;
+          comparison = Number(a.costPerMile) - Number(b.costPerMile);
           break;
-        case 'miles':
-          comparison = (a.route?.distance || 0) - (b.route?.distance || 0);
+        case 'distance':
+          comparison = (a.distance || 0) - (b.distance || 0);
           break;
+        default:
+          comparison = 0;
       }
       return sortOrder === 'asc' ? comparison : -comparison;
     });
@@ -1192,8 +1102,8 @@ const TripTracker: React.FC = () => {
   const chartData = useMemo(() => {
     return sortedTrips.map(trip => {
       // Ensure we have valid numbers for MPG and cost per mile
-      const mpg = isNaN(trip.mpg) || !isFinite(trip.mpg) ? 0 : trip.mpg;
-      const costPerMile = isNaN(trip.costPerMile) || !isFinite(trip.costPerMile) ? 0 : trip.costPerMile;
+      const mpg = isNaN(parseFloat(trip.mpg.toString())) || !isFinite(parseFloat(trip.mpg.toString())) ? 0 : parseFloat(trip.mpg.toString());
+      const costPerMile = isNaN(parseFloat(trip.costPerMile.toString())) || !isFinite(parseFloat(trip.costPerMile.toString())) ? 0 : parseFloat(trip.costPerMile.toString());
       
       return {
         date: new Date(trip.date).toLocaleDateString(),
@@ -1202,6 +1112,105 @@ const TripTracker: React.FC = () => {
       };
     });
   }, [sortedTrips]);
+
+  const renderTripDetails = (trip: Trip) => {
+    return (
+      <Box sx={{ mt: 2 }}>
+        <Typography variant="subtitle1" gutterBottom>
+          Trip Details
+        </Typography>
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={6}>
+            <Typography variant="body2">
+              <strong>Origin:</strong> {trip.origin}
+            </Typography>
+            <Typography variant="body2">
+              <strong>Destination:</strong> {trip.destination}
+            </Typography>
+            <Typography variant="body2">
+              <strong>Distance:</strong> {trip.distance} miles
+            </Typography>
+            <Typography variant="body2">
+              <strong>Fuel Amount:</strong> {trip.fuelAmount} gallons
+            </Typography>
+            <Typography variant="body2">
+              <strong>Fuel Cost:</strong> ${trip.fuelCost}
+            </Typography>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <Typography variant="body2">
+              <strong>MPG:</strong> {trip.mpg}
+            </Typography>
+            <Typography variant="body2">
+              <strong>Cost per Mile:</strong> ${trip.costPerMile}
+            </Typography>
+            <Typography variant="body2">
+              <strong>Vehicle Class:</strong> {trip.vehicleClass}
+            </Typography>
+            <Typography variant="body2">
+              <strong>Wheel Config:</strong> {trip.wheelConfig}
+            </Typography>
+            <Typography variant="body2">
+              <strong>Fuel Type:</strong> {trip.fuelType}
+            </Typography>
+            <Typography variant="body2">
+              <strong>Load Status:</strong> {trip.loadStatus}
+            </Typography>
+            {trip.trailerWeight && (
+              <Typography variant="body2">
+                <strong>Trailer Weight:</strong> {trip.trailerWeight} lbs
+              </Typography>
+            )}
+          </Grid>
+        </Grid>
+      </Box>
+    );
+  };
+
+  const renderMap = (trip: Trip) => {
+    if (!trip.origin || !trip.destination) return null;
+
+    return (
+      <Box sx={{ height: 300, width: '100%', mt: 2 }}>
+        <MapContainer
+          center={mapCenter}
+          zoom={6}
+          style={{ height: '100%', width: '100%' }}
+          zoomControl={false}
+        >
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          />
+          <ZoomControl position="topright" />
+          <MapUpdater center={mapCenter} />
+          {trip.coordinates && (
+            <>
+              <Marker position={trip.coordinates.origin}>
+                <Popup>{trip.origin}</Popup>
+              </Marker>
+              <Marker position={trip.coordinates.destination}>
+                <Popup>{trip.destination}</Popup>
+              </Marker>
+            </>
+          )}
+          {markers.route && (
+            <Polyline
+              positions={markers.route}
+              color="blue"
+              weight={3}
+              opacity={0.7}
+            />
+          )}
+        </MapContainer>
+      </Box>
+    );
+  };
+
+  // Update any string conversion issues
+  const formatNumber = (value: number | string): string => {
+    return typeof value === 'number' ? value.toString() : value;
+  };
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -1505,8 +1514,9 @@ const TripTracker: React.FC = () => {
               </Typography>
               <Typography variant="h4" sx={{ color: 'primary.main' }}>
                 {(() => {
-                  const currentFuelPrice = parseFloat(String(truckDetails.currentFuelPrice));
-                  if (isNaN(currentFuelPrice) || currentFuelPrice <= 0) return 'Enter fuel price';
+                  const distance1 = Number(formData.distance || 0);
+                  const fuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
+                  if (isNaN(fuelPrice) || fuelPrice <= 0) return 'Enter fuel price';
                   
                   const baseMPG = truckDetails.vehicleClass === 'class1' || 
                                  truckDetails.vehicleClass === 'class2' || 
@@ -1523,7 +1533,7 @@ const TripTracker: React.FC = () => {
                   }
                   
                   const adjustedMPG = baseMPG * mpgAdjustment;
-                  return `$${(currentFuelPrice / adjustedMPG).toFixed(2)}`;
+                  return `$${(fuelPrice / adjustedMPG).toFixed(2)}`;
                 })()}
               </Typography>
             </Box>
@@ -1535,10 +1545,10 @@ const TripTracker: React.FC = () => {
               <Typography variant="h4" sx={{ color: 'primary.main' }}>
                 {(() => {
                   const fuelTankSize = parseFloat(String(truckDetails.fuelTankSize));
-                  const currentFuelPrice = parseFloat(String(truckDetails.currentFuelPrice));
+                  const fuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
                   if (isNaN(fuelTankSize) || fuelTankSize <= 0) return 'Enter fuel tank size';
-                  if (isNaN(currentFuelPrice) || currentFuelPrice <= 0) return 'Enter fuel price';
-                  return `$${(fuelTankSize * currentFuelPrice).toFixed(2)}`;
+                  if (isNaN(fuelPrice) || fuelPrice <= 0) return 'Enter fuel price';
+                  return `$${(fuelTankSize * fuelPrice).toFixed(2)}`;
                 })()}
               </Typography>
             </Box>
@@ -1707,12 +1717,9 @@ const TripTracker: React.FC = () => {
                       {markers.route && markers.route.length > 0 && (
                         <Polyline
                           positions={markers.route}
-                          pathOptions={{
-                            color: theme.palette.primary.main,
-                            weight: 4,
-                            opacity: 0.8,
-                            dashArray: '5, 10'
-                          }}
+                          color="blue"
+                          weight={3}
+                          opacity={0.7}
                         />
                       )}
                     </MapContainer>
@@ -1731,7 +1738,7 @@ const TripTracker: React.FC = () => {
                       <Typography variant="subtitle2" color="text.secondary">Estimated Fuel Needed</Typography>
                       <Typography variant="h4" sx={{ fontWeight: 700 }}>
                         {(() => {
-                          const distance = parseFloat(formData.distance) || 0;
+                          const distance2 = Number(formData.distance || 0);
                           const baseMPG = truckDetails.vehicleClass === 'class1' || 
                                          truckDetails.vehicleClass === 'class2' || 
                                          truckDetails.vehicleClass === 'class3' || 
@@ -1747,7 +1754,7 @@ const TripTracker: React.FC = () => {
                           }
                           
                           const adjustedMPG = baseMPG * mpgAdjustment;
-                          return `${(distance / adjustedMPG).toFixed(1)} gal`;
+                          return `${(distance2 / adjustedMPG).toFixed(1)} gal`;
                         })()}
                       </Typography>
                     </Box>
@@ -1755,8 +1762,8 @@ const TripTracker: React.FC = () => {
                       <Typography variant="subtitle2" color="text.secondary">Estimated Cost</Typography>
                       <Typography variant="h4" sx={{ fontWeight: 700 }}>
                         {(() => {
-                          const distance = parseFloat(formData.distance) || 0;
-                          const currentFuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
+                          const distance3 = Number(formData.distance || 0);
+                          const fuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
                           const baseMPG = truckDetails.vehicleClass === 'class1' || 
                                          truckDetails.vehicleClass === 'class2' || 
                                          truckDetails.vehicleClass === 'class3' || 
@@ -1772,8 +1779,8 @@ const TripTracker: React.FC = () => {
                           }
                           
                           const adjustedMPG = baseMPG * mpgAdjustment;
-                          const gallonsNeeded = distance / adjustedMPG;
-                          return `$${(gallonsNeeded * currentFuelPrice).toFixed(2)}`;
+                          const gallonsNeeded = distance3 / adjustedMPG;
+                          return `$${(gallonsNeeded * fuelPrice).toFixed(2)}`;
                         })()}
                       </Typography>
                     </Box>
@@ -1781,7 +1788,8 @@ const TripTracker: React.FC = () => {
                       <Typography variant="subtitle2" color="text.secondary">Cost per Mile</Typography>
                       <Typography variant="h4" sx={{ fontWeight: 700 }}>
                         {(() => {
-                          const currentFuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
+                          const distance4 = Number(formData.distance || 0);
+                          const fuelPrice = parseFloat(String(truckDetails.currentFuelPrice)) || 0;
                           const baseMPG = truckDetails.vehicleClass === 'class1' || 
                                          truckDetails.vehicleClass === 'class2' || 
                                          truckDetails.vehicleClass === 'class3' || 
@@ -1797,7 +1805,7 @@ const TripTracker: React.FC = () => {
                           }
                           
                           const adjustedMPG = baseMPG * mpgAdjustment;
-                          return `$${(currentFuelPrice / adjustedMPG).toFixed(2)}`;
+                          return `$${(fuelPrice / adjustedMPG).toFixed(2)}`;
                         })()}
                       </Typography>
                     </Box>
@@ -1811,7 +1819,11 @@ const TripTracker: React.FC = () => {
                         checked={formData.isRoundTrip}
                         onChange={(e) => {
                           const isRoundTrip = e.target.checked;
-                          calculateRouteDetails(formData.origin, formData.destination, isRoundTrip);
+                          setFormData(prev => ({
+                            ...prev,
+                            isRoundTrip,
+                            distance: prev.distance * (isRoundTrip ? 2 : 0.5)
+                          }));
                         }}
                       />
                     }
@@ -1916,10 +1928,10 @@ const TripTracker: React.FC = () => {
                               {trip.route.distance.toFixed(1)} miles • {trip.route.duration}
                             </Typography>
                             <Typography variant="caption" color="text.secondary" display="block">
-                              Vehicle: {trip.vehicleDetails.vehicleClass.replace('class', 'Class ').toUpperCase()}
-                              {trip.vehicleDetails.wheelConfig ? ` (${trip.vehicleDetails.wheelConfig.toUpperCase()})` : ''}
-                              {trip.vehicleDetails.loadStatus === 'towing' && trip.vehicleDetails.trailerWeight ? 
-                                ` • Towing ${trip.vehicleDetails.trailerWeight} lbs` : ''}
+                              Vehicle: {trip.vehicleClass.replace('class', 'Class ').toUpperCase()}
+                              {trip.wheelConfig ? ` (${trip.wheelConfig.toUpperCase()})` : ''}
+                              {trip.loadStatus === 'towing' && trip.trailerWeight ? 
+                                ` • Towing ${trip.trailerWeight} lbs` : ''}
                             </Typography>
                           </Box>
                         ) : (
