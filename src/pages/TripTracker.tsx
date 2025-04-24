@@ -1013,7 +1013,7 @@ const TripTracker: React.FC = () => {
         route: markers.route ? {
           coordinates: markers.route,
           distance: distance,
-          duration: 0, // We could calculate this if needed
+          duration: distance / 65, // Estimate average speed of 65 mph if no duration provided
           origin: markers.origin || [0, 0],
           destination: markers.destination || [0, 0]
         } : undefined
@@ -1727,11 +1727,22 @@ const TripTracker: React.FC = () => {
                 )}
 
                 {formData.origin && formData.destination && (
-                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr' }, gap: 2 }}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr 1fr' }, gap: 2 }}>
                     <Box>
                       <Typography variant="subtitle2" color="text.secondary">Total Miles</Typography>
                       <Typography variant="h4" sx={{ fontWeight: 700 }}>
                         {formData.distance || '0.0'}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle2" color="text.secondary">Est. Duration</Typography>
+                      <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                        {(() => {
+                          const distance = Number(formData.distance || 0);
+                          // Use average speed of 65 mph for duration estimate
+                          const hours = distance / 65;
+                          return `${hours.toFixed(1)}h`;
+                        })()}
                       </Typography>
                     </Box>
                     <Box>
@@ -1922,10 +1933,10 @@ const TripTracker: React.FC = () => {
                         {trip.route ? (
                           <Box>
                             <Typography variant="body2" color="text.secondary">
-                              {trip.route.origin} → {trip.route.destination}
+                              {trip.origin} → {trip.destination}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {trip.route.distance.toFixed(1)} miles • {trip.route.duration}
+                              {trip.distance.toFixed(1)} miles • {trip.route.duration ? `${trip.route.duration.toFixed(1)} hours` : 'Duration N/A'}
                             </Typography>
                             <Typography variant="caption" color="text.secondary" display="block">
                               Vehicle: {trip.vehicleClass.replace('class', 'Class ').toUpperCase()}
