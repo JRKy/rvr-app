@@ -24,18 +24,24 @@ export interface PayloadCalculation {
 
 export interface Trip {
   id: string;
-  date: Date;
-  startMileage: number;
-  endMileage: number;
-  totalMiles: number;
-  fuelUsed: number;
+  date: string;
+  origin: string;
+  destination: string;
+  distance: number;
+  fuelAmount: number;
   fuelCost: number;
+  estimatedMPG: number;
+  isRoundTrip: boolean;
   mpg: number;
-  route?: {
-    start: string;
-    end: string;
+  costPerMile: number;
+  vehicleClass: string;
+  wheelConfig: string;
+  loadStatus: string;
+  currentFuelPrice: number;
+  coordinates?: {
+    origin: [number, number];
+    destination: [number, number];
   };
-  notes?: string;
 }
 
 export interface User {
