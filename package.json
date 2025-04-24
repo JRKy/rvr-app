@@ -17,16 +17,17 @@
     "@react-google-maps/api": "2.20.6",
     "@tanstack/react-query": "5.74.4",
     "@types/leaflet": "1.9.17",
-    "@vercel/node": "^3.0.0",
+    "@vercel/node": "^3.0.24",
     "date-fns": "4.1.0",
     "firebase": "^11.6.0",
     "leaflet": "1.9.4",
+    "lru-cache": "^11.1.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hook-form": "7.56.1",
     "react-leaflet": "5.0.0",
-    "react-router-dom": "7.5.1",
-    "recharts": "2.15.3"
+    "react-router-dom": "^7.5.1",
+    "recharts": "^2.15.3"
   },
   "devDependencies": {
     "@types/react": "19.1.2",
@@ -37,9 +38,23 @@
     "eslint": "^9.25.1",
     "eslint-plugin-react-hooks": "5.2.0",
     "eslint-plugin-react-refresh": "0.4.20",
-    "glob": "11.0.2",
-    "rimraf": "6.0.1",
-    "typescript": "5.8.3",
-    "vite": "^6.3.3"
+    "glob": "^11.0.2",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.8.3",
+    "vite": "^5.1.6"
+  },
+  "overrides": {
+    "gauge": "^5.0.1",
+    "npmlog": "^7.0.1",
+    "are-we-there-yet": "^4.0.1",
+    "path-to-regexp": "^6.2.1",
+    "undici": "^5.28.5",
+    "esbuild": "0.20.1",
+    "@vercel/node": {
+      "esbuild": "0.20.1"
+    },
+    "vite": {
+      "esbuild": "0.20.1"
+    }
   }
 }
