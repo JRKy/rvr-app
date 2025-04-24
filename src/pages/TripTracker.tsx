@@ -1675,7 +1675,10 @@ const TripTracker: React.FC = () => {
                               minWidth: '64px',
                               width: '64px',
                               height: '64px',
-                              borderRadius: 2
+                              borderRadius: 2,
+                              '& .MuiSvgIcon-root': {
+                                fontSize: '32px'  // Using large icon size
+                              }
                             }}
                             title="Use current location"
                           >
@@ -1693,7 +1696,10 @@ const TripTracker: React.FC = () => {
                               minWidth: '64px',
                               width: '64px',
                               height: '64px',
-                              borderRadius: 2
+                              borderRadius: 2,
+                              '& .MuiSvgIcon-root': {
+                                fontSize: '32px'  // Using large icon size
+                              }
                             }}
                             title="Use current location"
                           >
