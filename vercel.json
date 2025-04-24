@@ -10,10 +10,7 @@
     },
     {
       "src": "api/route.ts",
-      "use": "@vercel/node",
-      "config": {
-        "runtime": "edge"
-      }
+      "use": "@vercel/edge"
     }
   ],
   "rewrites": [
