@@ -97,6 +97,7 @@ interface FormData {
 
 interface TripStatistics {
   totalMiles: number;
+  totalHours: number;
   totalFuelCost: number;
   totalFuelAmount: number;
   averageMPG: number;
@@ -1048,9 +1049,11 @@ const TripTracker: React.FC = () => {
       const miles = trip.distance;
       const fuelAmount = trip.fuelAmount;
       const fuelCost = trip.fuelCost;
+      const hours = trip.route?.duration || trip.distance / 65; // Use route duration or estimate based on 65mph
       
       return {
         totalMiles: acc.totalMiles + miles,
+        totalHours: acc.totalHours + hours,
         totalFuelCost: acc.totalFuelCost + fuelCost,
         totalFuelAmount: acc.totalFuelAmount + fuelAmount,
         averageMPG: (acc.totalMiles + miles) / (acc.totalFuelAmount + fuelAmount),
@@ -1058,6 +1061,7 @@ const TripTracker: React.FC = () => {
       };
     }, {
       totalMiles: 0,
+      totalHours: 0,
       totalFuelCost: 0,
       totalFuelAmount: 0,
       averageMPG: 0,
@@ -1919,6 +1923,7 @@ const TripTracker: React.FC = () => {
                   <TableCell>Date</TableCell>
                   <TableCell>Route</TableCell>
                   <TableCell align="right">Miles</TableCell>
+                  <TableCell align="right">Hours</TableCell>
                   <TableCell align="right">Fuel (gal)</TableCell>
                   <TableCell align="right">Cost</TableCell>
                   <TableCell align="right">MPG</TableCell>
@@ -1935,9 +1940,6 @@ const TripTracker: React.FC = () => {
                             <Typography variant="body2" color="text.secondary">
                               {trip.origin} → {trip.destination}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {trip.distance.toFixed(1)} miles • {trip.route.duration ? `${trip.route.duration.toFixed(1)} hours` : 'Duration N/A'}
-                            </Typography>
                             <Typography variant="caption" color="text.secondary" display="block">
                               Vehicle: {trip.vehicleClass.replace('class', 'Class ').toUpperCase()}
                               {trip.wheelConfig ? ` (${trip.wheelConfig.toUpperCase()})` : ''}
@@ -1950,7 +1952,10 @@ const TripTracker: React.FC = () => {
                         )}
                     </TableCell>
                       <TableCell align="right">
-                        {trip.route ? trip.route.distance.toFixed(1) : '0.0'} miles
+                        {trip.distance.toFixed(1)}
+                      </TableCell>
+                      <TableCell align="right">
+                        {(trip.route?.duration || trip.distance / 65).toFixed(1)}
                       </TableCell>
                       <TableCell align="right">
                         {trip.fuelAmount.toFixed(1)}
@@ -1987,13 +1992,19 @@ const TripTracker: React.FC = () => {
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
                   Trip Statistics
                 </Typography>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr' }, gap: 2 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr 1fr' }, gap: 2 }}>
                   <Box>
                     <Typography variant="subtitle2" color="text.secondary">Total Miles</Typography>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
                       {totalStats.totalMiles.toFixed(1)}
                     </Typography>
-    </Box>
+                  </Box>
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary">Total Hours</Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                      {totalStats.totalHours.toFixed(1)}
+                    </Typography>
+                  </Box>
                   <Box>
                     <Typography variant="subtitle2" color="text.secondary">Total Fuel Cost</Typography>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
