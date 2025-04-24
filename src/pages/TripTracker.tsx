@@ -413,11 +413,6 @@ const TripTracker: React.FC = () => {
   // Add test function inside component
   const testApiConnection = async () => {
     try {
-      const apiKey = import.meta.env.VITE_OPENROUTE_API_KEY;
-      if (!apiKey) {
-        throw new Error('OpenRouteService API key is missing');
-      }
-
       // Test with a simple geocoding request
       const testLocation = 'New York, NY';
       const targetUrl = `${NOMINATIM_API_URL}/search?format=json&q=${encodeURIComponent(testLocation)}&limit=1&countrycodes=us`;
@@ -458,11 +453,13 @@ const TripTracker: React.FC = () => {
     <Autocomplete<Location | string>
       value={formData[type] ? suggestions.find(opt => opt.value === formData[type]) || null : null}
       onChange={(_, newValue) => {
+        console.log('Autocomplete onChange:', { type, newValue });
         if (newValue && typeof newValue !== 'string') {
           handleLocationSelect(newValue, type);
         }
       }}
       onInputChange={(_, newInputValue) => {
+        console.log('Autocomplete onInputChange:', { type, newInputValue });
         setFormData(prev => ({ ...prev, [type]: newInputValue }));
         debouncedFetchSuggestions(newInputValue);
       }}
@@ -593,10 +590,12 @@ const TripTracker: React.FC = () => {
   };
 
   const geocodeLocation = async (location: string): Promise<[number, number] | null> => {
+    console.log('geocodeLocation called with:', location);
     try {
       // Check cache first
       const cachedResult = geocodeCache[location];
       if (cachedResult && Date.now() - cachedResult.timestamp < CACHE_EXPIRY) {
+        console.log('Using cached coordinates:', cachedResult.coordinates);
         return cachedResult.coordinates;
       }
 
@@ -604,26 +603,31 @@ const TripTracker: React.FC = () => {
       const now = Date.now();
       const timeSinceLastRequest = now - lastRequestTime;
       if (timeSinceLastRequest < RATE_LIMIT_DELAY) {
+        console.log('Rate limiting, waiting:', RATE_LIMIT_DELAY - timeSinceLastRequest, 'ms');
         await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY - timeSinceLastRequest));
       }
       setLastRequestTime(Date.now());
 
-      const response = await fetch(
-        `${NOMINATIM_API_URL}/search?format=json&q=${encodeURIComponent(location)}&limit=1&countrycodes=us`,
-        {
-          headers: {
-            'User-Agent': 'RVR-App/1.0'
-          }
+      const url = `${NOMINATIM_API_URL}/search?format=json&q=${encodeURIComponent(location)}&limit=1&countrycodes=us`;
+      console.log('Fetching coordinates from:', url);
+      
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'RVR-App/1.0'
         }
-      );
+      });
 
       if (!response.ok) {
+        console.error('Geocoding request failed:', response.status);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
+      console.log('Geocoding response:', data);
+      
       if (data && data.length > 0) {
         const coordinates: [number, number] = [parseFloat(data[0].lon), parseFloat(data[0].lat)];
+        console.log('Extracted coordinates:', coordinates);
         
         // Update cache
         setGeocodeCache(prev => ({
@@ -636,9 +640,10 @@ const TripTracker: React.FC = () => {
         
         return coordinates;
       }
+      console.log('No coordinates found for location');
       return null;
     } catch (error) {
-      console.error('Error geocoding location:', error);
+      console.error('Error in geocodeLocation:', error);
       return null;
     }
   };
@@ -711,7 +716,9 @@ const TripTracker: React.FC = () => {
 
       // Convert route coordinates to [lat, lon] format for Leaflet
       const routeCoordinates = route.geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
-      console.log('Route coordinates:', routeCoordinates.length, 'points');
+      console.log('First 5 route coordinates:', routeCoordinates.slice(0, 5));
+      console.log('Last 5 route coordinates:', routeCoordinates.slice(-5));
+      console.log('Total route points:', routeCoordinates.length);
 
       // Update markers and map center
       setMarkers({
@@ -792,6 +799,7 @@ const TripTracker: React.FC = () => {
   // Update the debounced fetch suggestions function
   const debouncedFetchSuggestions = useCallback(
     debounce(async (input: string) => {
+      console.log('Fetching suggestions for:', input);
       if (!input.trim()) {
         setSuggestions([]);
         return;
@@ -833,22 +841,26 @@ const TripTracker: React.FC = () => {
           }
 
           const data = await response.json();
+          console.log('Nominatim response:', data);
+          
           if (data && data.length > 0) {
-            // Create a map to track unique locations
+            // Create a map to track unique locations using a combination of display_name and coordinates
             const uniqueLocations = new Map<string, Location>();
             
             data.forEach((feature: any) => {
-              const key = `${feature.display_name}-${feature.lat}-${feature.lon}`;
+              const key = feature.display_name; // Use display_name as the key
               if (!uniqueLocations.has(key)) {
                 uniqueLocations.set(key, {
                   label: feature.display_name,
-                  value: feature.display_name,
+                  value: feature.display_name, // Use display_name as the value
                   coordinates: [parseFloat(feature.lon), parseFloat(feature.lat)]
                 });
               }
             });
             
-            return Array.from(uniqueLocations.values());
+            const locations = Array.from(uniqueLocations.values());
+            console.log('Formatted locations:', locations);
+            return locations;
           }
           return [];
         } catch (error) {
@@ -864,6 +876,7 @@ const TripTracker: React.FC = () => {
 
       try {
         const formattedSuggestions = await fetchWithRetry();
+        console.log('Setting suggestions:', formattedSuggestions);
         setSuggestions(formattedSuggestions);
       } catch (error) {
         console.error('Error in debouncedFetchSuggestions:', error);
@@ -990,18 +1003,24 @@ const TripTracker: React.FC = () => {
     location: Location | null,
     type: 'origin' | 'destination'
   ) => {
+    console.log('handleLocationSelect called with:', { location, type });
     if (!location) return;
 
     try {
-      const coordinates = await geocodeLocation(location.value);
+      // Use the coordinates directly from the location object
+      const coordinates = location.coordinates;
+      console.log('Using coordinates from location:', coordinates);
+      
       if (coordinates) {
+        // Set the marker coordinates directly as [lat, lon]
+        const markerCoordinates = [coordinates[1], coordinates[0]]; // Convert from [lon, lat] to [lat, lon]
+        console.log('Setting marker coordinates:', markerCoordinates);
+        
         setMarkers(prev => ({
           ...prev,
-          [type]: {
-            position: coordinates,
-            label: location.label
-          }
+          [type]: markerCoordinates
         }));
+        
         setFormData(prev => ({
           ...prev,
           [type]: location.value
@@ -1009,7 +1028,15 @@ const TripTracker: React.FC = () => {
 
         // Only calculate route if both locations are selected and they are different
         const otherLocation = type === 'origin' ? formData.destination : formData.origin;
+        console.log('Checking other location:', { otherLocation, currentLocation: location.value });
+        
         if (otherLocation && otherLocation !== location.value) {
+          console.log('Calculating route between:', {
+            origin: type === 'origin' ? location.value : otherLocation,
+            destination: type === 'destination' ? location.value : otherLocation,
+            isRoundTrip: formData.isRoundTrip
+          });
+          
           calculateRouteDetails(
             type === 'origin' ? location.value : otherLocation,
             type === 'destination' ? location.value : otherLocation,
@@ -1018,7 +1045,7 @@ const TripTracker: React.FC = () => {
         }
       }
     } catch (error) {
-      console.error('Error handling location select:', error);
+      console.error('Error in handleLocationSelect:', error);
     }
   };
 
@@ -1356,6 +1383,16 @@ const TripTracker: React.FC = () => {
                 <Button
                   variant="outlined"
                   onClick={() => {
+                    if (!EIA_API_KEY) {
+                      setFuelPriceError('EIA API key is not configured. Using default fuel prices.');
+                      setTruckDetails(prev => ({
+                        ...prev,
+                        currentFuelPrice: DEFAULT_FUEL_PRICES[prev.fuelType].toString()
+                      }));
+                      setPriceSource('default');
+                      return;
+                    }
+
                     setIsLoadingFuelPrice(true);
                     setFuelPriceError(null);
                     

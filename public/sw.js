@@ -41,7 +41,6 @@ self.addEventListener('install', (event) => {
 self.addEventListener('fetch', (event) => {
   // Skip caching for API requests
   if (event.request.url.includes('/api/') || 
-      event.request.url.includes('openrouteservice.org') ||
       event.request.url.includes('api.eia.gov')) {
     return fetch(event.request);
   }
