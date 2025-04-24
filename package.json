@@ -17,6 +17,7 @@
     "@react-google-maps/api": "2.20.6",
     "@tanstack/react-query": "5.74.4",
     "@types/leaflet": "1.9.17",
+    "@vercel/node": "^3.0.0",
     "date-fns": "4.1.0",
     "firebase": "^11.6.0",
     "leaflet": "1.9.4",
