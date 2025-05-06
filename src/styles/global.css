@@ -1,0 +1,245 @@
+/* Modern CSS Reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  padding: 1rem;
+}
+
+img, picture, video, canvas, svg {
+  display: block;
+  max-width: 100%;
+}
+
+input, button, textarea, select {
+  font: inherit;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Smooth Scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Focus Styles */
+:focus-visible {
+  outline: 2px solid var(--focus-color);
+  outline-offset: 2px;
+}
+
+/* Selection Styles */
+::selection {
+  background: var(--selection-bg-color);
+  color: var(--selection-text-color);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Utility Classes */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.rounded {
+  border-radius: 8px;
+}
+
+.shadow {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Print Styles */
+@media print {
+  body {
+    background: none;
+  }
+  
+  .no-print {
+    display: none;
+  }
+}
+
+/* Color Scheme */
+:root {
+  --primary-color: #0ea5e9; /* Bright teal */
+  --secondary-color: #f97316; /* Coral accent */
+  --background-color: #f3f4f6;
+  --text-color: #111827;
+  --focus-color: #0ea5e9;
+  --selection-bg-color: rgba(14, 165, 233, 0.2);
+  --selection-text-color: #1e293b;
+}
+
+/* Typography Enhancements */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+}
+
+/* Button Styles */
+button {
+  background-color: var(--primary-color);
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  transition: background-color 0.3s ease, transform 0.3s ease;
+}
+
+button:hover {
+  background-color: var(--secondary-color);
+  transform: translateY(-2px);
+}
+
+/* Card Styles */
+.card {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 1rem;
+  margin: 1rem 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Dark Mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background-color: #1f2937;
+    --text-color: #f9fafb;
+    --primary-color: #38bdf8; /* Lighter teal for dark mode */
+    --secondary-color: #fb923c; /* Lighter coral for dark mode */
+  }
+}
+
+/* Responsive Design Enhancements */
+
+/* Mobile First Styles */
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+}
+
+/* Media Queries for Larger Screens */
+@media (min-width: 768px) {
+  .container {
+    flex-direction: row;
+    justify-content: space-between;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .card {
+    flex: 1 1 calc(33.333% - 1rem);
+    margin: 0.5rem;
+  }
+
+  button {
+    padding: 0.75rem 1.5rem;
+  }
+}
+
+/* Touch-Friendly Elements */
+button, .link {
+  touch-action: manipulation;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0;
+  font-size: 1rem;
+}
+
+/* Navigation Styles */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background-color: var(--primary-color);
+  color: #fff;
+}
+
+.navbar .menu {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .navbar .menu {
+    display: flex;
+  }
+}
+
+/* Gradient Backgrounds */
+.header {
+  background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+  color: #fff;
+  padding: 1rem;
+  text-align: center;
+}
+
+/* Iconography */
+.icon {
+  width: 24px;
+  height: 24px;
+  fill: var(--primary-color);
+  transition: fill 0.3s ease;
+}
+
+.icon:hover {
+  fill: var(--secondary-color);
+} 
